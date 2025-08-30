@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ウォーリーを探せミニゲーム</title>
+<style>
+    body {
+        background: #222;
+        color: white;
+        text-align: center;
+        font-family: sans-serif;
+        margin: 0;
+        overflow: hidden;
+    }
+    #game-area {
+        position: relative;
+        display: inline-block;
+        overflow: hidden;
+    }
+    #scene {
+        transition: transform 0.8s ease;
+        display: block;
+        max-width: 100%;
+        height: auto;
+    }
+    .marker {
+        position: absolute;
+        width: 30px;
+        height: 30px;
+        background: rgba(255, 0, 0, 0.5);
+        border: 2px solid white;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        animation: pop 0.3s ease;
+    }
+    @keyframes pop {
+        0% { transform: translate(-50%, -50%) scale(0); }
+        100% { transform: translate(-50%, -50%) scale(1); }
+    }
+    #message {
+        margin-top: 10px;
+        font-size: 1.5em;
+    }
+</style>
+</head>
+<body>
+
+<h1>ウォーリーを探せ！</h1>
+<div id="game-area">
+    <img src="C:\Users\user\Downloads\hidden_quest_game\as\yokai-watch_bg_4_Object Removal.jpg" id="scene" alt="ウォーリー探し">
+</div>
+<div id="message">ウォーリーを見つけよう！</div>
+
+<script>
+const scene = document.getElementById('scene');
+const gameArea = document.getElementById('game-area');
+const message = document.getElementById('message');
+
+// ウォーリーの位置と判定範囲（画像内のpx座標）
+const targetX = 400; // ウォーリーのX座標
+const targetY = 300; // ウォーリーのY座標
+const size = 40;     // 判定範囲(px)
+
+// マーカーを置く関数
+function placeMarker(x, y, hit=false) {
+    const marker = document.createElement('div');
+    marker.classList.add('marker');
+    marker.style.left = x + 'px';
+    marker.style.top = y + 'px';
+    if (hit) {
+        marker.style.background = 'rgba(0,255,0,0.5)';
+    }
+    gameArea.appendChild(marker);
+    setTimeout(() => marker.remove(), 1500);
+}
+
+scene.addEventListener('click', function(e) {
+    const rect = scene.getBoundingClientRect();
+    const scaleX = scene.naturalWidth / rect.width;
+    const scaleY = scene.naturalHeight / rect.height;
+
+    const clickX = (e.clientX - rect.left) * scaleX;
+    const clickY = (e.clientY - rect.top) * scaleY;
+
+    // 表示上のクリック位置（マーカー用）
+    const displayX = e.clientX - rect.left;
+    const displayY = e.clientY - rect.top;
+
+    if (Math.abs(clickX - targetX) < size && Math.abs(clickY - targetY) < size) {
+        message.textContent = "ウォーリー発見！";
+        placeMarker(displayX, displayY, true);
+        scene.style.transform = `scale(2) translate(${-displayX + rect.width/4}px, ${-displayY + rect.height/4}px)`;
+        setTimeout(() => {
+            scene.style.transform = "scale(1)";
+        }, 1500);
+    } else {
+        message.textContent = "違うよ！";
+        placeMarker(displayX, displayY);
+    }
+});
+</script>
+
+</body>
+</html>

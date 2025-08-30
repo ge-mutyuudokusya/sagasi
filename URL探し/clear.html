@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>クリア！</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body {
+      background: linear-gradient(135deg, #ffe259 0%, #ffa751 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      animation: bgmove 10s infinite alternate;
+    }
+    @keyframes bgmove {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 100% 50%; }
+    }
+    .confetti {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      pointer-events: none;
+      z-index: 999;
+    }
+    h1 {
+      font-size: 3em;
+      color: #fff;
+      text-shadow: 2px 2px 8px #ffb347, 0 0 20px #fff;
+      margin-bottom: 0.5em;
+      animation: pop 1s;
+    }
+    @keyframes pop {
+      0% { transform: scale(0.7); opacity: 0; }
+      80% { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(1); }
+    }
+    .trophy {
+      font-size: 5em;
+      margin-bottom: 0.3em;
+      animation: shine 2s infinite alternate;
+    }
+    @keyframes shine {
+      0% { filter: brightness(1); }
+      100% { filter: brightness(1.5); }
+    }
+    p {
+      font-size: 1.5em;
+      color: #fff;
+      text-shadow: 1px 1px 6px #ffa751;
+      margin-bottom: 2em;
+    }
+    .btn-home {
+      padding: 1em 2em;
+      font-size: 1.2em;
+      background: #fffbe7;
+      color: #ff9800;
+      border: none;
+      border-radius: 2em;
+      box-shadow: 0 4px 16px rgba(255,152,0,0.2);
+      cursor: pointer;
+      transition: background 0.2s;
+      font-weight: bold;
+      text-decoration: none;
+    }
+    .btn-home:hover {
+      background: #ffe0b2;
+    }
+  </style>
+</head>
+<body>
+  <canvas class="confetti"></canvas>
+  <div class="trophy">🏆</div>
+  <h1>🎉 おめでとう！クリアです！ 🎉</h1>
+  <p>すべての謎を解き明かしました。<br>あなたは真の冒険者です！</p>
+  <a href="index.html" class="btn-home">トップへ戻る</a>
+  <script>
+    // Confetti animation
+    const canvas = document.querySelector('.confetti');
+    const ctx = canvas.getContext('2d');
+    let W = window.innerWidth, H = window.innerHeight;
+    canvas.width = W; canvas.height = H;
+    const confettiCount = 150;
+    const confettiColors = ['#fff176','#ffd54f','#ffb300','#ff7043','#fff','#f8bbd0','#b2dfdb','#81d4fa'];
+    const confetti = [];
+    function randomInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+    for(let i=0;i<confettiCount;i++){
+      confetti.push({
+        x: randomInt(0, W),
+        y: randomInt(-H, 0),
+        r: randomInt(5, 12),
+        d: randomInt(10, 30),
+        color: confettiColors[randomInt(0, confettiColors.length-1)],
+        tilt: randomInt(-10,10),
+        tiltAngle: 0,
+        tiltAngleIncremental: (Math.random() * 0.07) + .05
+      });
+    }
+    function drawConfetti(){
+      ctx.clearRect(0,0,W,H);
+      confetti.forEach(c=>{
+        ctx.beginPath();
+        ctx.lineWidth = c.r;
+        ctx.strokeStyle = c.color;
+        ctx.moveTo(c.x + c.tilt + (c.r/3), c.y);
+        ctx.lineTo(c.x + c.tilt, c.y + c.tilt + c.d/2);
+        ctx.stroke();
+      });
+      updateConfetti();
+      requestAnimationFrame(drawConfetti);
+    }
+    function updateConfetti(){
+      confetti.forEach(c=>{
+        c.y += (Math.cos(c.d) + 3 + c.r/2)/2;
+        c.x += Math.sin(0.01 * c.d);
+        c.tiltAngle += c.tiltAngleIncremental;
+        c.tilt = Math.sin(c.tiltAngle) * 15;
+        if(c.y > H){
+          c.x = randomInt(0, W);
+          c.y = randomInt(-20, 0);
+        }
+      });
+    }
+    window.addEventListener('resize', ()=>{
+      W = window.innerWidth; H = window.innerHeight;
+      canvas.width = W; canvas.height = H;
+    });
+    drawConfetti();
+  </script>
+</body>
+</html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>クリア！</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <h1> おめでとう！クリアです！ </h1>
+  <p onclick="alert('stage8の画像が出なかった時の表示');">すべての謎を解き明かしました。</p>
+</body>
+</html>
