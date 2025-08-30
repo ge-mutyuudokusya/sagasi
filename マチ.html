@@ -275,7 +275,7 @@
 
   // --- HUD ---
   const chips = [0,1,2,3].map(i=>document.getElementById('chip'+i));
-  const PIECES = ['https://','ge-mutyuudokusya.github.io','/プロジェクター','\index.html'];
+  const PIECES = ['https://','ge-mutyuudokusya.github.io','/プロジェクター','/index.html'];
   function updateChips(){
     PIECES.forEach((p,i)=>{ chips[i].classList.toggle('have',!!progress.pieces[p]); chips[i].textContent=progress.pieces[p]?p:(i+1); });
   }
@@ -446,4 +446,5 @@ if(v===9){ // 石像
 </script>
 </body>
 </html>
+
 
