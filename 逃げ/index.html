@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Stealth — 見つからないように移動（拡張版）</title>
+<style>
+  :root{
+    --bg:#0e0e12; --ui:#111218; --text:#eaeaea;
+    --player:#7fe3a7; --enemy:#e36b6b; --goal:#ffd166;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:linear-gradient(#070709,#0f0f12);color:var(--text);font-family:system-ui, "Hiragino Kaku Gothic ProN", "Yu Gothic", Arial;}
+  .wrap{display:flex; gap:16px; padding:16px; max-width:1200px; margin:0 auto; align-items:flex-start;}
+  canvas{border-radius:10px; box-shadow:0 12px 36px rgba(0,0,0,0.6); background:#171717; touch-action:none;}
+  .ui{width:340px; background:rgba(255,255,255,0.02); padding:14px; border-radius:10px;}
+  h1{margin:0 0 8px 0; font-size:18px}
+  p{margin:6px 0;color:#bfc6d0;font-size:13px}
+  .bar{height:14px;background:#1b1b1d;border-radius:8px;overflow:hidden;margin-top:6px}
+  .bar > i{display:block;height:100%;background:linear-gradient(#76f0b0,#1fb57b);width:100%}
+  .detected{margin-top:10px;display:flex;align-items:center;gap:8px}
+  .dot{width:14px;height:14px;border-radius:50%;background:#333}
+  .dot.on{background:#ff6161;box-shadow:0 0 12px rgba(255,97,97,0.6)}
+  button{margin-top:12px;padding:8px 12px;background:#1f6feb;border:none;color:white;border-radius:8px;cursor:pointer}
+  .small{color:#9aa;font-size:12px;margin-top:8px;display:block}
+  .stat{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .stat > div{background:rgba(255,255,255,0.02);padding:8px;border-radius:8px;font-size:13px}
+  ul{margin:6px 0 0 16px;color:#bfc6d0}
+  @media (max-width:980px){.wrap{flex-direction:column;align-items:center}.ui{width:100%;max-width:980px}canvas{width:100%;height:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="game" width="880" height="560"></canvas>
+
+  <div class="ui">
+    <h1>隠れていこう</h1>
+    <p>操作: WASD / 矢印キーで移動。目的地（黄色）へ到達するとレベルクリア。敵に捕捉されるとゲームオーバー。</p>
+
+    <div>
+      <label>ステルス（検出ゲージ）</label>
+      <div class="bar"><i id="stealth-bar" style="width:100%"></i></div>
+    </div>
+
+    <div class="detected">
+      <div class="dot" id="det-dot"></div>
+      <div id="det-text">検出状況：安全</div>
+    </div>
+
+    <div class="stat">
+      <div>レベル: <span id="level-num">1</span></div>
+      <div>スコア: <span id="score-num">0</span></div>
+      <div>残り時間: <span id="time-num">—</span></div>
+    </div>
+
+    <div style="margin-top:8px">
+      <button id="restart">リスタート</button>
+      <button id="toggle-sound" style="margin-left:8px">サウンド: ON</button>
+    </div>
+
+
+
+    <p>敵に見つからないように黄色に移動しよう</p>
+    
+  </div>
+</div>
+
+<script>
+
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W = canvas.width, H = canvas.height;
+
+/* ----------------- Game state ----------------- */
+let state = {
+  running: true,
+  detected: 0,
+  message: '',
+  soundOn: true,
+  levelIndex: 0,
+  score: 0,
+  timeLeft: 0,
+  footstepTimer: 0,
+};
+
+/* ---------------- Audio (WebAudio) ---------------- */
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new AudioCtx();
+    // small resumed context on first user gesture
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+}
+function playTone(freq, duration=0.12, type='sine', gain=0.12) {
+  if (!state.soundOn) return;
+  ensureAudio();
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  g.gain.value = gain;
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start();
+  o.stop(audioCtx.currentTime + duration);
+}
+function playBGM() {
+  if (!state.soundOn) return;
+  ensureAudio();
+  // ambient noise using low-frequency oscillator + filter (simple ambient loop)
+  if (audioCtx._bgm) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  const f = audioCtx.createBiquadFilter();
+  o.type = 'sine';
+  o.frequency.value = 55;
+  f.type = 'lowpass';
+  f.frequency.value = 200;
+  g.gain.value = 0.02;
+  o.connect(f); f.connect(g); g.connect(audioCtx.destination);
+  o.start();
+  audioCtx._bgm = {osc:o, gain:g};
+}
+function stopBGM() {
+  if (!audioCtx || !audioCtx._bgm) return;
+  audioCtx._bgm.osc.stop();
+  audioCtx._bgm = null;
+}
+function footstepSound() {
+  // footstep: short pitch noise
+  if (!state.soundOn) return;
+  ensureAudio();
+  // two quick tones
+  playTone(420, 0.045, 'sawtooth', 0.04);
+  setTimeout(()=>playTone(380, 0.045, 'sine', 0.03), 55);
+}
+function hitObjectSound() {
+  if (!state.soundOn) return;
+  ensureAudio();
+  playTone(880, 0.06, 'square', 0.08);
+  setTimeout(()=>playTone(560, 0.08, 'sine', 0.06), 70);
+}
+function alertBeep() {
+  if (!state.soundOn) return;
+  ensureAudio();
+  playTone(1200, 0.06, 'sawtooth', 0.12);
+  setTimeout(()=>playTone(900, 0.09, 'sine', 0.09), 80);
+}
+
+/* ----------------- Levels: map + entities ----------------- */
+/* Each level contains: walls, shadows, covers (hideable), boxes (noise generators),
+   enemies (with patrol points), goal, timeLimit, scoreReward
+*/
+const levels = [
+  // Level 1: tutorial-ish
+  {
+    timeLimit: 75,
+    scoreReward: 100,
+    playerStart: {x:48, y:500},
+    walls: [
+      {x:0,y:0,w:W,h:24},{x:0,y:H-24,w:W,h:24},{x:0,y:0,w:24,h:H},{x:W-24,y:0,w:24,h:H},
+      {x:150,y:80,w:48,h:240},{x:300,y:260,w:200,h:40},{x:540,y:80,w:40,h:200},{x:380,y:20,w:24,h:120}
+    ],
+    shadows: [{x:40,y:320,w:120,h:140},{x:460,y:330,w:280,h:200},{x:240,y:120,w:140,h:90}],
+    covers: [{x:200,y:380,w:56,h:56},{x:600,y:160,w:64,h:64}], // hideable: inside → reduce detection heavily
+    boxes: [{x:320,y:220,w:20,h:20},{x:700,y:420,w:20,h:20}], // can be hit to make noise
+    goal: {x:720,y:40,w:48,h:48},
+    enemies: [
+      {x:260,y:140,patrol:[{x:260,y:140},{x:480,y:140}], speed:1.2, viewDist:110, fov:Math.PI*0.28, color:'#e36b6b', react:0.9},
+      {x:520,y:420,patrol:[{x:520,y:420},{x:200,y:460}], speed:1.0, viewDist:120, fov:Math.PI*0.34, color:'#ff9a76', react:1.1},
+      {x:140,y:140,patrol:[{x:140,y:140},{x:140,y:320}], speed:0.9, viewDist:100, fov:Math.PI*0.42, color:'#d07bff', react:0.8},
+    ]
+  },
+  // Level 2: more enemies, tighter shadows
+  {
+    timeLimit: 90,
+    scoreReward: 220,
+    playerStart: {x:64,y:520},
+    walls: [
+      {x:0,y:0,w:W,h:24},{x:0,y:H-24,w:W,h:24},{x:0,y:0,w:24,h:H},{x:W-24,y:0,w:24,h:H},
+      {x:240,y:100,w:24,h:320},{x:420,y:60,w:24,h:200},{x:560,y:200,w:220,h:24}
+    ],
+    shadows: [{x:50,y:60,w:140,h:120},{x:330,y:320,w:160,h:180}],
+    covers: [{x:120,y:160,w:48,h:48},{x:420,y:360,w:56,h:56},{x:700,y:260,w:48,h:48}],
+    boxes: [{x:260,y:360,w:20,h:20},{x:520,y:120,w:20,h:20},{x:660,y:440,w:20,h:20}],
+    goal: {x:760,y:40,w:48,h:48},
+    enemies: [
+      {x:200,y:120,patrol:[{x:200,y:120},{x:200,y:420}], speed:1.0, viewDist:140, fov:Math.PI*0.34, color:'#ffbf61', react:1.2},
+      {x:400,y:200,patrol:[{x:400,y:200},{x:580,y:200}], speed:1.4, viewDist:130, fov:Math.PI*0.22, color:'#ff6bcb', react:1.4},
+      {x:640,y:360,patrol:[{x:640,y:360},{x:360,y:360}], speed:1.05, viewDist:110, fov:Math.PI*0.46, color:'#6bd6ff', react:0.9},
+      {x:520,y:420,patrol:[{x:520,y:420},{x:720,y:420}], speed:0.8, viewDist:150, fov:Math.PI*0.28, color:'#ff7b7b', react:1.0},
+    ]
+  },
+  // Level 3: tight corridors, moving boxes
+  {
+    timeLimit: 100,
+    scoreReward: 420,
+    playerStart: {x:64,y:520},
+    walls: [
+      {x:0,y:0,w:W,h:24},{x:0,y:H-24,w:W,h:24},{x:0,y:0,w:24,h:H},{x:W-24,y:0,w:24,h:H},
+      {x:120,y:80,w:24,h:440},{x:260,y:80,w:24,h:380},{x:400,y:200,w:24,h:320},{x:540,y:80,w:24,h:440}
+    ],
+    shadows: [{x:28,y:420,w:120,h:120},{x:700,y:320,w:140,h:160}],
+    covers: [{x:80,y:480,w:40,h:40},{x:460,y:120,w:48,h:48}],
+    boxes: [{x:220,y:460,w:20,h:20},{x:440,y:340,w:20,h:20},{x:640,y:200,w:20,h:20}],
+    goal: {x:760,y:40,w:48,h:48},
+    enemies: [
+      {x:200,y:140,patrol:[{x:200,y:140},{x:200,y:380}], speed:1.3, viewDist:120, fov:Math.PI*0.34, color:'#ff4d4d', react:1.5},
+      {x:480,y:260,patrol:[{x:480,y:260},{x:480,y:420}], speed:0.9, viewDist:100, fov:Math.PI*0.5, color:'#ffa86b', react:0.8},
+      {x:660,y:360,patrol:[{x:660,y:360},{x:660,y:160}], speed:1.05, viewDist:140, fov:Math.PI*0.3, color:'#9b7bff', react:1.2},
+    ]
+  }
+];
+
+/* ----------------- Player ----------------- */
+const player = {x:48,y:H-80,r:10,speed:2.4,hidden:false};
+
+/* ----------------- Dynamic entities (will be created per-level) ----------------- */
+let walls = [], shadows = [], covers = [], boxes = [], goal = null, enemies = [];
+
+/* ----------------- Input ----------------- */
+const keys = {};
+window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if (!audioCtx) ensureAudio(); });
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+/* -------------- UI elements --------------- */
+const stealthBar = document.getElementById('stealth-bar');
+const detDot = document.getElementById('det-dot');
+const detText = document.getElementById('det-text');
+const levelNum = document.getElementById('level-num');
+const scoreNum = document.getElementById('score-num');
+const timeNum = document.getElementById('time-num');
+const restartBtn = document.getElementById('restart');
+const toggleSoundBtn = document.getElementById('toggle-sound');
+
+restartBtn.addEventListener('click', ()=>startLevel(state.levelIndex, true));
+toggleSoundBtn.addEventListener('click', ()=>{ state.soundOn = !state.soundOn; toggleSoundBtn.textContent = 'サウンド: ' + (state.soundOn ? 'ON' : 'OFF'); if (!state.soundOn) stopBGM(); else playBGM(); });
+
+/* ----------------- Init / Level load ----------------- */
+function startLevel(index, restart=false){
+  const lvl = levels[index];
+  walls = JSON.parse(JSON.stringify(lvl.walls));
+  shadows = JSON.parse(JSON.stringify(lvl.shadows));
+  covers = JSON.parse(JSON.stringify(lvl.covers));
+  boxes = JSON.parse(JSON.stringify(lvl.boxes));
+  goal = JSON.parse(JSON.stringify(lvl.goal));
+  enemies = lvl.enemies.map(e => createEnemyFromConfig(e));
+  player.x = lvl.playerStart.x; player.y = lvl.playerStart.y;
+  state.detected = 0; state.running = true; state.message=''; state.timeLeft = lvl.timeLimit;
+  // score persists across levels; if restarting level and restart===true, do not reset total score
+  if (!restart && index === 0) state.score = 0;
+  levelNum.textContent = (index+1);
+  scoreNum.textContent = state.score;
+  updateUI();
+  if (state.soundOn) playBGM();
+}
+function createEnemyFromConfig(cfg){
+  return {
+    x: cfg.x, y: cfg.y, r:12, speed: cfg.speed || 1, patrol: cfg.patrol.slice(), pi:0,
+    viewDist: cfg.viewDist, fov: cfg.fov, color: cfg.color || '#e36b6b', dir:0, alert:0, react: cfg.react || 1.0
+  };
+}
+
+/* ----------------- Collision helpers ----------------- */
+function circleIntersectsRect(c, r){
+  const closestX = Math.max(r.x, Math.min(c.x, r.x + r.w));
+  const closestY = Math.max(r.y, Math.min(c.y, r.y + r.h));
+  const dx = c.x - closestX, dy = c.y - closestY;
+  return (dx*dx + dy*dy) < (c.r * c.r);
+}
+function collideWalls(circle){ for (const w of walls) if (circleIntersectsRect(circle,w)) return true; return false; }
+
+/* ----------------- Raycasts / LOS ----------------- */
+function segmentIntersect(x1,y1,x2,y2, x3,y3,x4,y4){
+  const denom = (y4-y3)*(x2-x1) - (x4-x3)*(y2-y1);
+  if (Math.abs(denom) < 1e-6) return false;
+  const ua = ((x4-x3)*(y1-y3) - (y4-y3)*(x1-x3)) / denom;
+  const ub = ((x2-x1)*(y1-y3) - (y2-y1)*(x1-x3)) / denom;
+  return ua>=0 && ua<=1 && ub>=0 && ub<=1;
+}
+function lineIntersectsRect(x1,y1,x2,y2,rect){
+  const rx=rect.x, ry=rect.y, rw=rect.w, rh=rect.h;
+  if (segmentIntersect(x1,y1,x2,y2, rx,ry, rx+rw,ry)) return true;
+  if (segmentIntersect(x1,y1,x2,y2, rx+rw,ry, rx+rw,ry+rh)) return true;
+  if (segmentIntersect(x1,y1,x2,y2, rx+rw,ry+rh, rx,ry+rh)) return true;
+  if (segmentIntersect(x1,y1,x2,y2, rx,ry+rh, rx,ry)) return true;
+  return false;
+}
+function isBlocked(x1,y1,x2,y2){
+  for (const w of walls) if (lineIntersectsRect(x1,y1,x2,y2,w)) return true;
+  return false;
+}
+
+/* ----------------- Enemy functions ----------------- */
+function updateEnemies(delta){
+  enemies.forEach(en=>{
+    // patrol movement
+    if (en.patrol && en.patrol.length>0){
+      const t = en.patrol[en.pi];
+      const dx = t.x - en.x, dy = t.y - en.y;
+      const d = Math.hypot(dx,dy);
+      if (d < 4) en.pi = (en.pi+1)%en.patrol.length;
+      else{
+        const nx = (dx/d) * en.speed * delta;
+        const ny = (dy/d) * en.speed * delta;
+        const newPos = {x:en.x+nx,y:en.y+ny,r:en.r};
+        if (!collideWalls(newPos)){ en.x += nx; en.y += ny; }
+        if (Math.abs(nx)+Math.abs(ny) > 0.001) en.dir = Math.atan2(ny,nx);
+      }
+    }
+    // decay alert slowly
+    en.alert = Math.max(0, en.alert - 0.01*delta);
+  });
+}
+
+/* ----------------- Detection ----------------- */
+function smallestAngleBetween(a,b){
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI*2;
+  while (d < -Math.PI) d += Math.PI*2;
+  return d;
+}
+function updateDetection(delta){
+  // inShadow if inside any shadow rect
+  const inShadow = shadows.some(s => player.x > s.x && player.x < s.x+s.w && player.y > s.y && player.y < s.y+s.h);
+  // hiding in cover?
+  const inCover = covers.some(c => player.x > c.x && player.x < c.x+c.w && player.y > c.y && player.y < c.y+c.h);
+  player.hidden = Boolean(inCover);
+
+  let detectedNow = 0;
+  enemies.forEach(en=>{
+    const vx = player.x - en.x, vy = player.y - en.y;
+    const dist = Math.hypot(vx,vy);
+    if (dist > en.viewDist) return;
+    const angToPlayer = Math.atan2(vy,vx);
+    const dAng = smallestAngleBetween(en.dir, angToPlayer);
+    if (Math.abs(dAng) > en.fov/2) return;
+    if (isBlocked(en.x,en.y,player.x,player.y)) return;
+    // detection base
+    let base = (1 - dist/en.viewDist) * en.react; // enemy react affects strength
+    // reduce if in shadow
+    if (inShadow) base *= 0.28;
+    // major reduce if in cover
+    if (inCover) base *= 0.12;
+    // add if enemy is alerted
+    base *= (1 + en.alert);
+    detectedNow = Math.max(detectedNow, base);
+    // bump alert value slightly
+    en.alert = Math.min(2.0, en.alert + base * 0.06);
+  });
+
+  if (detectedNow <= 0) {
+    state.detected = Math.max(0, state.detected - 0.012 * delta);
+  } else {
+    state.detected = Math.min(1, state.detected + detectedNow * 0.035 * delta);
+  }
+
+  if (state.detected >= 1) {
+    state.running = false;
+    state.message = '見つかりました… ゲームオーバー';
+    alertBeep();
+  }
+}
+
+/* ------------- Player movement & interactions ------------- */
+function handlePlayerMovement(delta){
+  let dx=0, dy=0;
+  if (keys['arrowup']||keys['w']) dy -= 1;
+  if (keys['arrowdown']||keys['s']) dy += 1;
+  if (keys['arrowleft']||keys['a']) dx -= 1;
+  if (keys['arrowright']||keys['d']) dx += 1;
+
+  if (dx!==0 || dy!==0){
+    const len = Math.hypot(dx,dy) || 1;
+    dx/=len; dy/=len;
+    const nx = player.x + dx * player.speed * delta;
+    const ny = player.y + dy * player.speed * delta;
+    const p = {x:nx,y:ny,r:player.r};
+    if (!collideWalls(p)){ player.x = nx; player.y = ny; }
+    else {
+      const p1={x:nx,y:player.y,r:player.r}, p2={x:player.x,y:ny,r:player.r};
+      if (!collideWalls(p1)) player.x = nx;
+      if (!collideWalls(p2)) player.y = ny;
+    }
+    // footsteps: interval based on movement
+    state.footstepTimer -= 1;
+    if (state.footstepTimer <= 0) {
+      footstepSound(); state.footstepTimer = 12; // cadence
+      // small stealth penalty for moving in the open: if not in shadow/cover, slight detection increase
+      const inShadowNow = shadows.some(s => player.x > s.x && player.x < s.x+s.w && player.y > s.y && player.y < s.y+s.h);
+      const inCoverNow = covers.some(c => player.x > c.x && player.x < c.x+c.w && player.y > c.y && player.y < c.y+c.h);
+      if (!inShadowNow && !inCoverNow) state.detected = Math.min(1, state.detected + 0.002 * delta);
+    }
+  } else {
+    state.footstepTimer = 0;
+  }
+
+  // Interact with boxes: hit by pressing space or clicking near
+  if (keys[' ']) {
+    // simulate hit once per press
+    if (!keys._spaceHandled) {
+      hitNearestBox(); keys._spaceHandled = true;
+    }
+  } else keys._spaceHandled = false;
+
+  // Check goal
+  if (player.x > goal.x && player.x < goal.x + goal.w && player.y > goal.y && player.y < goal.y + goal.h) {
+    levelCleared();
+  }
+}
+
+/* -------------- Box noise & enemy attraction -------------- */
+function hitNearestBox(){
+  // find box within radius 36
+  let nearest = null, nd = Infinity;
+  for (const b of boxes){
+    const dx = player.x - (b.x + b.w/2), dy = player.y - (b.y + b.h/2);
+    const d = Math.hypot(dx,dy);
+    if (d < 56 && d < nd) { nearest = b; nd = d; }
+  }
+  if (!nearest) return;
+  // produce noise
+  hitObjectSound();
+  // For each enemy, if within certain hearing distance, set alert and set their attention target toward noise
+  enemies.forEach(en=>{
+    const dx = (nearest.x + nearest.w/2) - en.x, dy = (nearest.y + nearest.h/2) - en.y;
+    const dist = Math.hypot(dx,dy);
+    const hearingRange = 220; // hearing radius
+    if (dist < hearingRange) {
+      // increase alert and redirect patrol target temporarily
+      en.alert = Math.min(2.0, en.alert + (1 - dist/hearingRange) * 1.2);
+      // turn to face noise immediately
+      en.dir = Math.atan2(dy,dx);
+      // make them move somewhat toward noise by adding a temporary patrol point at noise
+      en.patrol.splice(en.pi+1,0,{x: nearest.x + nearest.w/2, y: nearest.y + nearest.h/2});
+    }
+  });
+  // scoring: making noise costs points
+  state.score = Math.max(0, state.score - 8);
+}
+
+/* -------------- Level complete / fail -------------- */
+function levelCleared(){
+  state.running = false;
+  state.message = 'クリア！ 次のレベルへ';
+  // award score: remaining time * factor + reward
+  const timeBonus = Math.round(state.timeLeft * 3);
+  const reward = levels[state.levelIndex].scoreReward + timeBonus;
+  state.score += reward;
+  scoreNum.textContent = state.score;
+  // small positive jingle
+  playTone(880, 0.09, 'sine', 0.12);
+  setTimeout(()=>playTone(1100, 0.08, 'sine', 0.12), 100);
+  // advance after short delay
+  setTimeout(()=>{
+    state.levelIndex++;
+    if (state.levelIndex >= levels.length) {
+      state.message = `全レベルクリア！ 最終スコア: ${state.score}`;
+      // stop BGM
+      stopBGM();
+    } else {
+      startLevel(state.levelIndex);
+    }
+  }, 900);
+}
+function gameOver(){
+  state.running = false;
+  state.message = 'ゲームオーバー';
+  stopBGM();
+}
+
+/* -------------- Rendering -------------- */
+function render(){
+  ctx.clearRect(0,0,W,H);
+  // floor
+  ctx.fillStyle = '#222';
+  ctx.fillRect(0,0,W,H);
+
+  // draw shadows (darker zones)
+  shadows.forEach(s => {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(s.x, s.y, s.w, s.h);
+  });
+
+  // draw covers (hideable objects) - visually different
+  covers.forEach(c=>{
+    ctx.fillStyle = 'rgba(20,80,20,0.9)';
+    ctx.fillRect(c.x, c.y, c.w, c.h);
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.strokeRect(c.x,c.y,c.w,c.h);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.font = '10px system-ui';
+    ctx.fillText('HIDE', c.x+6, c.y+12);
+  });
+
+  // draw boxes (can be hit)
+  boxes.forEach(b=>{
+    ctx.fillStyle = '#8f6b4f';
+    ctx.fillRect(b.x,b.y,b.w,b.h);
+    ctx.strokeStyle = '#5a3e2a'; ctx.strokeRect(b.x,b.y,b.w,b.h);
+  });
+
+  // draw goal
+  ctx.fillStyle = 'rgba(255,209,102,1)';
+  ctx.fillRect(goal.x,goal.y,goal.w,goal.h);
+  ctx.strokeStyle = '#b8860b'; ctx.strokeRect(goal.x,goal.y,goal.w,goal.h);
+
+  // draw walls
+  ctx.fillStyle = '#3b3b3b';
+  walls.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
+
+  // enemies vision cones first
+  enemies.forEach(en => drawVisionCone(en));
+
+  // enemies bodies
+  enemies.forEach(en=>{
+    ctx.beginPath();
+    ctx.fillStyle = en.color || '#e36b6b';
+    ctx.arc(en.x,en.y,en.r,0,Math.PI*2); ctx.fill();
+    // eye
+    const ex = en.x + Math.cos(en.dir)*(en.r+5);
+    const ey = en.y + Math.sin(en.dir)*(en.r+5);
+    ctx.beginPath(); ctx.fillStyle='#fff'; ctx.arc(ex,ey,4,0,Math.PI*2); ctx.fill();
+    // small alert marker
+    if (en.alert > 0.4){
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(255,60,60,${Math.min(0.85,en.alert/1.8)})`;
+      ctx.arc(en.x, en.y - en.r - 8, 5, 0, Math.PI*2); ctx.fill();
+    }
+  });
+
+  // player
+  ctx.beginPath();
+  ctx.fillStyle = player.hidden ? 'rgba(126,227,167,0.6)' : 'rgba(126,227,167,1)';
+  ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.stroke();
+
+  // overlay if detected
+  if (state.detected > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.6, state.detected*0.9);
+    ctx.fillStyle = 'rgba(255,80,80,0.12)';
+    ctx.fillRect(0,0,W,H);
+    ctx.restore();
+  }
+
+  // UI overlay messages
+  if (!state.running) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#fff'; ctx.font='26px system-ui'; ctx.textAlign='center';
+    ctx.fillText(state.message, W/2, H/2 - 6);
+    ctx.font='14px system-ui'; ctx.fillText('「リスタート」で再挑戦', W/2, H/2 + 22);
+    ctx.textAlign='start'; ctx.restore();
+  }
+}
+
+/* draw vision cone with raycast to walls */
+function drawVisionCone(en){
+  const startAng = en.dir - en.fov/2;
+  const endAng = en.dir + en.fov/2;
+  ctx.beginPath(); ctx.moveTo(en.x,en.y);
+  const steps = 20;
+  for (let i=0;i<=steps;i++){
+    const a = startAng + (endAng-startAng)*(i/steps);
+    let sx = en.x + Math.cos(a) * en.viewDist;
+    let sy = en.y + Math.sin(a) * en.viewDist;
+    const blocked = castRayToWall(en.x,en.y,sx,sy);
+    if (blocked) { ctx.lineTo(blocked.x,blocked.y); } else ctx.lineTo(sx,sy);
+  }
+  ctx.closePath();
+  const g = ctx.createRadialGradient(en.x,en.y,0,en.x,en.y,en.viewDist);
+  const alertLevel = Math.min(1,en.alert);
+  g.addColorStop(0, `rgba(255,80,80,${0.14 + 0.34*alertLevel})`); g.addColorStop(1,'rgba(255,80,80,0)');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,80,80,0.06)'; ctx.stroke();
+}
+function castRayToWall(x1,y1,x2,y2){
+  let nearest=null, nd=Infinity;
+  for (const w of walls){
+    const edges = [
+      [w.x,w.y,w.x+w.w,w.y],
+      [w.x+w.w,w.y,w.x+w.w,w.y+w.h],
+      [w.x+w.w,w.y+w.h,w.x,w.y+w.h],
+      [w.x,w.y+w.h,w.x,w.y]
+    ];
+    for (const e of edges){
+      const it = getSegmentIntersection({x:x1,y:y1},{x:x2,y:y2},{x:e[0],y:e[1]},{x:e[2],y:e[3]});
+      if (it){
+        const d = Math.hypot(it.x-x1,it.y-y1);
+        if (d < nd) { nd = d; nearest = it; }
+      }
+    }
+  }
+  return nearest;
+}
+function getSegmentIntersection(p1,p2,p3,p4){
+  const x1=p1.x,y1=p1.y,x2=p2.x,y2=p2.y;
+  const x3=p3.x,y3=p3.y,x4=p4.x,y4=p4.y;
+  const denom = (y4-y3)*(x2-x1) - (x4-x3)*(y2-y1);
+  if (Math.abs(denom) < 1e-6) return null;
+  const ua = ((x4-x3)*(y1-y3) - (y4-y3)*(x1-x3)) / denom;
+  const ub = ((x2-x1)*(y1-y3) - (y2-y1)*(x1-x3)) / denom;
+  if (ua>=0 && ua<=1 && ub>=0 && ub<=1) return {x: x1 + ua*(x2-x1), y: y1 + ua*(y2-y1)};
+  return null;
+}
+
+/* ----------------- Main loop ----------------- */
+let last = performance.now();
+function loop(t){
+  const dt = Math.min(40, t - last);
+  last = t;
+  if (state.running) {
+    update(dt/16.67);
+    render();
+  } else {
+    render();
+  }
+  requestAnimationFrame(loop);
+}
+function update(delta){
+  // delta is approx frames
+  handlePlayerMovement(delta);
+  updateEnemies(delta);
+  updateDetection(delta);
+  state.timeLeft = Math.max(0, state.timeLeft - (delta * 0.01667));
+  if (state.timeLeft <= 0 && state.running) {
+    state.running = false; state.message = '時間切れ…'; stopBGM();
+  }
+  updateUI();
+}
+function updateUI(){
+  stealthBar.style.width = Math.round((1 - state.detected) * 100) + '%';
+  if (state.detected > 0.6) { detDot.classList.add('on'); detText.textContent = '検出：危険！'; }
+  else if (state.detected > 0.25) { detDot.classList.remove('on'); detText.textContent = '検出：注意'; }
+  else { detDot.classList.remove('on'); detText.textContent = '検出：安全'; }
+  levelNum.textContent = state.levelIndex + 1;
+  scoreNum.textContent = state.score;
+  timeNum.textContent = Math.ceil(state.timeLeft) + ' s';
+}
+
+/* --------------- Touch support --------------- */
+let touchState = null;
+canvas.addEventListener('pointerdown', e => {
+  const rect = canvas.getBoundingClientRect();
+  touchState = {startX: e.clientX-rect.left, startY: e.clientY-rect.top, id: e.pointerId};
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointerup', e=>{
+  if (!touchState) return;
+  if (e.pointerId === touchState.id) { touchState = null; keys['arrowup']=keys['arrowdown']=keys['arrowleft']=keys['arrowright']=false; }
+});
+canvas.addEventListener('pointermove', e=>{
+  if (!touchState || e.pointerId !== touchState.id) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+  const dx = mx - touchState.startX, dy = my - touchState.startY;
+  const dead = 8;
+  keys['arrowup'] = dy < -dead; keys['arrowdown'] = dy > dead; keys['arrowleft'] = dx < -dead; keys['arrowright'] = dx > dead;
+});
+
+/* --------------- Mouse click: interact with boxes (also makes noise) --------------- */
+canvas.addEventListener('click', e=>{
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  // if clicked on box, and close enough, hit it
+  for (const b of boxes){
+    if (mx > b.x && mx < b.x+b.w && my > b.y && my < b.y+b.h){
+      // if player near enough to click and hit, else simulate throwing noise (still costs)
+      const dx = player.x - (b.x + b.w/2), dy = player.y - (b.y + b.h/2);
+      const d = Math.hypot(dx,dy);
+      if (d < 140) {
+        hitObjectSound();
+        // attract enemies similarly as hitting
+        enemies.forEach(en=>{
+          const ex = (b.x + b.w/2) - en.x, ey = (b.y + b.h/2) - en.y; const dist = Math.hypot(ex,ey);
+          const hearingRange = 260;
+          if (dist < hearingRange) {
+            en.alert = Math.min(2.0, en.alert + (1 - dist/hearingRange) * 1.2);
+            en.dir = Math.atan2(ey,ex);
+            en.patrol.splice(en.pi+1,0,{x: b.x + b.w/2, y: b.y + b.h/2});
+          }
+        });
+        state.score = Math.max(0, state.score - 8);
+      }
+    }
+  }
+});
+
+/* ------------------ Init game ------------------ */
+function init(){
+  state.levelIndex = 0;
+  startLevel(0);
+  requestAnimationFrame(loop);
+}
+init();
+
+/* Prevent page scroll on touch */
+document.body.addEventListener('touchmove', e => { e.preventDefault(); }, {passive:false});
+
+/* Ensure audio context activation on first user gesture */
+window.addEventListener('pointerdown', ()=>{ if (state.soundOn) { ensureAudio(); playBGM(); } }, {once:true});
+
+</script>
+</body>
+</html>
