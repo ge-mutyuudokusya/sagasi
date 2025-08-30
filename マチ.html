@@ -180,7 +180,7 @@
     },
     { id:'kid', name:'子ども', x:T*20, y:T*16,
       dialog:[ 'トロッコ楽しかった！' ],
-      hintPiece: '\index.html'
+      hintPiece: '/index.html'
     },
   ];
 
@@ -287,7 +287,7 @@
     if(all){
       const url = PIECES.join('');
       unlockBox.style.display='block';
-      unlockBox.innerHTML = `<div>URLが解放されました！</div><div><a href="https://ge-mutyuudokusya.github.io/sagasi/プロジェクター\index.html" target="_blank" rel="noopener">→ https://ge-mutyuudokusya.github.io/sagasi/プロジェクター\index.html</a></div>  <small><button style="  background: #540050;color:#8be9fd; "><a href="サバク.html">次のステージに行く</a></button></small>`;
+      unlockBox.innerHTML = `<div>URLが解放されました！</div><div><a href="https://ge-mutyuudokusya.github.io/sagasi/プロジェクター/index.html" target="_blank" rel="noopener">→ https://ge-mutyuudokusya.github.io/sagasi/プロジェクター/index.html</a></div>  <small><button style="  background: #540050;color:#8be9fd; "><a href="サバク.html">次のステージに行く</a></button></small>`;
     } else { unlockBox.style.display='none'; unlockBox.innerHTML=''; }
   }
   checkUnlock();
@@ -446,3 +446,4 @@ if(v===9){ // 石像
 </script>
 </body>
 </html>
+
