@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<script>
+  // BGMとSEの制御
+  document.addEventListener('DOMContentLoaded', function() {
+    const bgm = document.getElementById('月光第一楽章.mp3');
+    const battleBgm = document.getElementById('月光第三楽章.mp3');
+    const se = {
+      chest: document.getElementById('se-chest'),
+      battle: document.getElementById('se-battle'),
+      attack: document.getElementById('se-attack'),
+      skill: document.getElementById('se-skill'),
+      run: document.getElementById('se-run'),
+      heal: document.getElementById('se-heal')
+    };
+
+    // ユーザー操作でBGM開始（自動再生対策）
+    function startBGM() {
+      if (bgm.paused) {
+        bgm.volume = 0.5;
+        bgm.play().catch(()=>{});
+      }
+      document.removeEventListener('keydown', startBGM);
+      document.removeEventListener('touchstart', startBGM);
+    }
+    document.addEventListener('keydown', startBGM);
+    document.addEventListener('touchstart', startBGM);
+
+    // SE再生用関数
+    window.playSE = function(name) {
+      if (se[name]) {
+        se[name].currentTime = 0;
+        se[name].play().catch(()=>{});
+      }
+    };
+
+    // BGM切り替え
+    window.playFieldBGM = function() {
+      if (!bgm.paused) return;
+      battleBgm.pause();
+      battleBgm.currentTime = 0;
+      bgm.volume = 0.5;
+      bgm.play().catch(()=>{});
+    };
+    window.playBattleBGM = function() {
+      bgm.pause();
+      bgm.currentTime = 0;
+      battleBgm.volume = 0.5;
+      battleBgm.currentTime = 0;
+      battleBgm.play().catch(()=>{});
+    };
+
+    // BGM停止用
+    window.stopBGM = function() {
+      bgm.pause();
+      bgm.currentTime = 0;
+      battleBgm.pause();
+      battleBgm.currentTime = 0;
+    };
+  });
+  
+</script>
+<!-- BGM/SE Audio Elements -->
+<audio id="bgm" src="月光第一楽章.mp3" loop preload="auto"></audio>
+<audio id="bgm-battle" src="月光第三楽章.mp3" loop preload="auto"></audio>
+<audio id="se-chest" src="Battle1.ogg" preload="auto"></audio>
+<audio id="se-battle" src="Battle1.ogg" preload="auto"></audio>
+<audio id="se-attack" src="Battle1.ogg" preload="auto"></audio>
+<audio id="se-skill" src="Battle1.ogg" preload="auto"></audio>
+<audio id="se-run" src="se_run.mp3" preload="auto"></audio>
+<audio id="se-heal" src="se_heal.mp3" preload="auto"></audio>
+<script>
+    // BGMとSEの制御
+    document.addEventListener('DOMContentLoaded', function() {
+        const bgm = document.getElementById('bgm');
+        const se = {
+            chest: document.getElementById('se-chest'),
+            battle: document.getElementById('se-battle'),
+            attack: document.getElementById('se-attack'),
+            skill: document.getElementById('se-skill'),
+            run: document.getElementById('se-run'),
+            heal: document.getElementById('se-heal')
+        };
+
+        // ユーザー操作でBGM開始（自動再生対策）
+        function startBGM() {
+            if (bgm.paused) {
+                bgm.volume = 0.5;
+                bgm.play().catch(()=>{});
+            }
+            document.removeEventListener('keydown', startBGM);
+            document.removeEventListener('touchstart', startBGM);
+        }
+        document.addEventListener('keydown', startBGM);
+        document.addEventListener('touchstart', startBGM);
+
+        // SE再生用関数
+        window.playSE = function(name) {
+            if (se[name]) {
+                se[name].currentTime = 0;
+                se[name].play().catch(()=>{});
+            }
+        };
+
+        // BGM停止用
+        window.stopBGM = function() {
+            bgm.pause();
+            bgm.currentTime = 0;
+        };
+    });
+    
+</script>
+<!-- BGM/SE Audio Elements -->
+<audio id="bgm" src="月光第一楽章.mp3" loop preload="auto"></audio>
+<audio id="se-chest" src="月光第三楽章.mp3" preload="auto"></audio>
+<audio id="se-battle" src="se_battle.mp3" preload="auto"></audio>
+<audio id="se-attack" src="se_attack.mp3" preload="auto"></audio>
+<audio id="se-skill" src="se_skill.mp3" preload="auto"></audio>
+<audio id="se-run" src="se_run.mp3" preload="auto"></audio>
+<audio id="se-heal" src="se_heal.mp3" preload="auto"></audio>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>HTML5</title>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#121a33; --panel2:#0f1530; --text:#e9f0ff; --accent:#6dd3ff; --good:#54ff86; --bad:#ff6d6d; --warn:#ffd66d;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:radial-gradient(1200px 700px at 50% -10%,#17244c 0%, var(--bg) 55%);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif}
+    #app{display:grid;place-items:center;min-height:100vh;padding:12px}
+    .game-wrap{display:grid;gap:12px}
+    canvas{width:min(92vw, 768px);height:auto;image-rendering:pixelated;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.5);border:1px solid #26335a}
+    .hud{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;width:min(92vw,768px)}
+    .panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid #223059;border-radius:14px;padding:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04), 0 8px 24px rgba(0,0,0,.25)}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:14px}
+    .stat{background:#0e1631;border:1px solid #23325a;border-radius:10px;padding:6px 8px}
+    .bar{height:8px;background:#0a0f20;border-radius:10px;overflow:hidden;margin-top:4px;border:1px solid #26335a}
+    .bar>i{display:block;height:100%}
+    .hp i{background:linear-gradient(90deg,#ff7a7a,#ff3131)}
+    .mp i{background:linear-gradient(90deg,#6dd3ff,#368bff)}
+    .xp i{background:linear-gradient(90deg,#6dffa2,#20d67a)}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .btn{appearance:none;border:1px solid #223059;background:linear-gradient(180deg,#1a2750,#0f1838);color:var(--text);padding:8px 12px;border-radius:12px;cursor:pointer;font-weight:600;letter-spacing:.02em;box-shadow:0 2px 0 rgba(0,0,0,.5)}
+    .btn:active{transform:translateY(1px)}
+    .log{min-height:48px;font-size:14px;line-height:1.4}
+    .mini{font-size:12px;color:#b9c7ff;opacity:.9}
+
+    /* Mobile controls */
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:min(92vw,768px)}
+    .pad{display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(3,64px);gap:8px;justify-content:center}
+    .pad .pbtn{width:64px;height:64px;border-radius:16px;background:#0f1a38;border:1px solid #24325a;box-shadow:0 4px 0 rgba(0,0,0,.4);display:grid;place-items:center;font-weight:800}
+    .pad .pbtn:active{transform:translateY(2px)}
+    .act{display:flex;gap:12px;justify-content:center;align-items:center}
+    .act .pbtn{width:110px;height:64px;border-radius:16px;background:#0f1a38;border:1px solid #24325a;box-shadow:0 4px 0 rgba(0,0,0,.4);display:grid;place-items:center;font-weight:800}
+    .hide-mobile{display:block}
+    @media (max-width:720px){.hide-mobile{display:none}}
+
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;background:#0e1631;border:1px solid #223059}
+    .badge i{display:inline-block;width:8px;height:8px;border-radius:50%}
+    .b-hp i{background:var(--bad)}
+    .b-mp i{background:var(--accent)}
+    .b-xp i{background:var(--good)}
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="game-wrap">
+    <canvas id="game" width="640" height="480" aria-label="TinyRPG Canvas"></canvas>
+    <div class="hud">
+      <div class="panel">
+        <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="row mini">
+            <span class="badge b-hp"><i></i>HP</span>
+            <span class="badge b-mp"><i></i>MP</span>
+            <span class="badge b-xp"><i></i>XP</span>
+          </div>
+          <div class="row mini">
+            <span id="gold">G: 0</span>
+            <span> | </span>
+            <span id="floor">Floor: 1</span>
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat"><b>HP</b>
+            <div class="bar hp"><i id="hpbar" style="width:100%"></i></div>
+            <div class="mini" id="hptext"></div>
+          </div>
+          <div class="stat"><b>MP</b>
+            <div class="bar mp"><i id="mpbar" style="width:100%"></i></div>
+            <div class="mini" id="mptext"></div>
+          </div>
+          <div class="stat"><b>XP</b>
+            <div class="bar xp"><i id="xpbar" style="width:0%"></i></div>
+            <div class="mini" id="xptext"></div>
+          </div>
+        </div>
+        <div class="log" id="log">ようこそ！ 矢印キー/WASD で移動。敵に触れるとバトル！</div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn" id="save">セーブ</button>
+          <button class="btn" id="load">ロード</button>
+          <button class="btn" id="heal">休憩(宿)</button>
+          <button class="btn" id="reset">最初から</button>
+        </div>
+      </div>
+      <div class="panel hide-mobile">
+        <b>操作</b>
+        <div class="mini">移動: 矢印/WASD｜決定: Enter/Space｜メニュー: Esc｜攻撃: J｜スキル: K｜逃げる: L</div>
+        <div class="mini" style="margin-top:6px">マップの<mark>宝箱</mark>でアイテム、<mark>階段</mark>で次のフロア。</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="panel pad" id="dpad">
+        <div></div><button class="pbtn" data-dir="up">▲</button><div></div>
+        <button class="pbtn" data-dir="left">◀</button><div></div><button class="pbtn" data-dir="right">▶</button>
+        <div></div><button class="pbtn" data-dir="down">▼</button><div></div>
+      </div>
+      <div class="panel act">
+        <button class="pbtn" id="btnA">攻撃 (J)</button>
+        <button class="pbtn" id="btnB">スキル (K)</button>
+        <button class="pbtn" id="btnC">逃げる (L)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+(function(){
+
+  // ---------- 基本設定 ----------
+  const TILE = 32;              // 1タイルのピクセル
+  const COLS = 20, ROWS = 15;   // マップサイズ
+  const W = COLS*TILE, H = ROWS*TILE;
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const UI = {
+    hpbar: document.getElementById('hpbar'),
+    mpbar: document.getElementById('mpbar'),
+    xpbar: document.getElementById('xpbar'),
+    hptext: document.getElementById('hptext'),
+    mptext: document.getElementById('mptext'),
+    xptext: document.getElementById('xptext'),
+    log: document.getElementById('log'),
+    gold: document.getElementById('gold'),
+    floor: document.getElementById('floor'),
+    save: document.getElementById('save'),
+    load: document.getElementById('load'),
+    heal: document.getElementById('heal'),
+    reset: document.getElementById('reset'),
+    dpad: document.getElementById('dpad'),
+    btnA: document.getElementById('btnA'),
+    btnB: document.getElementById('btnB'),
+    btnC: document.getElementById('btnC'),
+  };
+
+  const RNG = (n)=>Math.random()*n|0;
+  const clamp = (v,min,max)=>v<min?min:(v>max?max:v);
+
+  // ---------- ゲームデータ ----------
+  const COLORS = {
+    floor1:'#162346', wall:'#0e1a3b', water:'#0c1430', chest:'#d8c26e', stairs:'#7ee6a2', player:'#e4f1ff', enemy:'#ff8282', ui:'#6dd3ff'
+  };
+
+  const T = { FLOOR:0, WALL:1, WATER:2, CHEST:3, STAIRS:4, ENEMY:5 };
+
+  function makeMap(seed=Date.now()){
+    // シンプルなランダムローグ風生成
+    const map = Array.from({length:ROWS},()=>Array(COLS).fill(T.WALL));
+    // いくつかの部屋を掘る
+    const rooms = [];
+    for(let i=0;i<8;i++){
+      const w=RNG(5)+3, h=RNG(4)+3;
+      const x=RNG(COLS-w-2)+1, y=RNG(ROWS-h-2)+1;
+      rooms.push({x,y,w,h});
+      for(let yy=y; yy<y+h; yy++) for(let xx=x; xx<x+w; xx++) map[yy][xx]=T.FLOOR;
+    }
+    // 部屋を通路でつなぐ
+    rooms.sort((a,b)=>a.x-b.x);
+    for(let i=0;i<rooms.length-1;i++){
+      const a=rooms[i], b=rooms[i+1];
+      const y = a.y + (a.h>>1);
+      for(let x=Math.min(a.x+b.w, a.x+a.w); x<=b.x; x++) map[y][x]=T.FLOOR;
+      const xmid = b.x;
+      const y2 = b.y + (b.h>>1);
+      for(let yv=Math.min(y,y2); yv<=Math.max(y,y2); yv++) map[yv][xmid]=T.FLOOR;
+    }
+    // 水域
+    for(let i=0;i<60;i++){
+      const x=RNG(COLS), y=RNG(ROWS);
+      if(map[y][x]===T.FLOOR) map[y][x]=T.WATER;
+    }
+    // 宝箱
+    for(let i=0;i<6;i++){
+      const x=RNG(COLS), y=RNG(ROWS);
+      if(map[y][x]===T.FLOOR) map[y][x]=T.CHEST;
+    }
+    // 階段
+    let sx,sy; do{ sx=RNG(COLS); sy=RNG(ROWS);}while(map[sy][sx]!==T.FLOOR);
+    map[sy][sx]=T.STAIRS;
+
+    // 敵シンボル（歩いてる敵）
+    const enemies=[];
+    for(let i=0;i<8;i++){
+      let ex,ey; do{ ex=RNG(COLS); ey=RNG(ROWS);}while(map[ey][ex]!==T.FLOOR);
+      enemies.push({x:ex,y:ey,dir:0,hp:3});
+    }
+
+    // プレイヤー初期位置
+    let px,py; do{ px=RNG(COLS); py=RNG(ROWS);}while(map[py][px]!==T.FLOOR);
+
+    return {map, rooms, stairs:{x:sx,y:sy}, enemies, start:{x:px,y:py}};
+  }
+
+  const player = {
+    x:1,y:1, hp:24,maxHp:24, mp:10,maxMp:10, atk:6, def:2, lv:1, xp:0, next:10, gold:0,
+    inv:[], floor:1, seed:Date.now(),
+  };
+
+  let world = makeMap(player.seed);
+  player.x = world.start.x; player.y = world.start.y;
+
+  // ---------- 入力 ----------
+  const keys = {};
+  addEventListener('keydown',e=>{ keys[e.key.toLowerCase()]=true; });
+  addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
+  // 仮想パッド
+  UI.dpad.addEventListener('touchstart',e=>{ e.preventDefault(); });
+  UI.dpad.addEventListener('click',e=>{
+    const dir = e.target.getAttribute('data-dir');
+    if(!dir) return;
+    const m={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]}[dir];
+    tryMove(m[0],m[1]);
+  });
+  UI.btnA.onclick = ()=> battleCommand('attack');
+  UI.btnB.onclick = ()=> battleCommand('skill');
+  UI.btnC.onclick = ()=> battleCommand('run');
+
+  // ---------- ユーティリティ描画 ----------
+  function drawTile(x,y,type){
+    const px=x*TILE, py=y*TILE;
+    if(type===T.WALL){
+      // 壁: 濃いブロック
+      ctx.fillStyle = COLORS.wall; ctx.fillRect(px,py,TILE,TILE);
+      ctx.fillStyle = '#1b2a57'; ctx.fillRect(px,py+TILE-6,TILE,6);
+    } else if(type===T.FLOOR){
+      ctx.fillStyle = COLORS.floor1; ctx.fillRect(px,py,TILE,TILE);
+      ctx.strokeStyle = '#1c2f63'; ctx.lineWidth=1; ctx.strokeRect(px+0.5,py+0.5,TILE-1,TILE-1);
+    } else if(type===T.WATER){
+      ctx.fillStyle = COLORS.water; ctx.fillRect(px,py,TILE,TILE);
+      ctx.fillStyle = 'rgba(109,211,255,.15)'; ctx.fillRect(px,py,TILE,TILE);
+    } else if(type===T.CHEST){
+      ctx.fillStyle = COLORS.floor1; ctx.fillRect(px,py,TILE,TILE);
+      ctx.fillStyle = COLORS.chest; ctx.fillRect(px+8,py+10,16,12);
+      ctx.fillStyle = '#8b7b3d'; ctx.fillRect(px+8,py+18,16,2);
+    } else if(type===T.STAIRS){
+      ctx.fillStyle = COLORS.floor1; ctx.fillRect(px,py,TILE,TILE);
+      ctx.fillStyle = COLORS.stairs;
+      for(let i=0;i<4;i++) ctx.fillRect(px+6, py+6+i*6, 20, 3);
+    }
+  }
+
+  function drawEnemySymbol(e){
+    const px=e.x*TILE, py=e.y*TILE;
+    ctx.fillStyle = COLORS.enemy; ctx.beginPath();
+    ctx.arc(px+16,py+16,12,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillRect(px+10,py+14,4,2); ctx.fillRect(px+22,py+14,4,2);
+  }
+
+  function drawPlayer(){
+    const px=player.x*TILE, py=player.y*TILE;
+    ctx.fillStyle = COLORS.player; ctx.fillRect(px+8,py+6,16,20);
+    ctx.fillStyle = '#0e1631'; ctx.fillRect(px+10,py+10,4,4); ctx.fillRect(px+20,py+10,4,4);
+  }
+
+  // ---------- 進行管理 ----------
+  let tick=0, moveCool=0, mode='field'; // 'field' or 'battle'
+  let battle=null; // 現在のバトル情報
+
+  function log(msg){ UI.log.textContent = msg; }
+
+  function canWalk(x,y){
+    if(x<0||y<0||x>=COLS||y>=ROWS) return false;
+    const t=world.map[y][x];
+    if(t===T.WALL) return false;
+    if(t===T.WATER) return false;
+    return true;
+  }
+
+  function tryMove(dx,dy){
+    if(mode!=='field') return;
+    if(moveCool>0) return;
+    const nx=player.x+dx, ny=player.y+dy;
+    if(!canWalk(nx,ny)){ log('進めない…'); moveCool=4; return; }
+    player.x=nx; player.y=ny; moveCool=6;
+    // 何かある？
+    const tile = world.map[ny][nx];
+    if(tile===T.CHEST){
+      openChest(nx,ny);
+    } else if(tile===T.STAIRS){
+      nextFloor();
+      return;
+    }
+    // 敵に触れた？
+    const hit = world.enemies.find(e=>e.x===nx&&e.y===ny);
+    if(hit){ startBattle(); }
+  }
+
+  function openChest(x,y){
+    world.map[y][x]=T.FLOOR;
+    const roll = RNG(100);
+    if(roll<50){
+      const gold = RNG(11)+5; player.gold+=gold; log(`宝箱！ ${gold}Gを手に入れた。`);
+    } else if(roll<85){
+      const p = {name:'ポーション', type:'heal', value:10}; player.inv.push(p); log('ポーションを手に入れた。');
+    } else {
+      const p = {name:'エーテル', type:'mp', value:6}; player.inv.push(p); log('エーテルを手に入れた。');
+    }
+    updateHUD();
+  }
+
+  function nextFloor(){
+    player.floor++;
+    player.seed = Date.now()+player.floor;
+    world = makeMap(player.seed);
+    player.x = world.start.x; player.y = world.start.y;
+    UI.floor.textContent = `Floor: ${player.floor}`;
+    log(`階段を降りた。Floor ${player.floor}`);
+  }
+
+  function updateHUD(){
+    UI.hpbar.style.width = `${(player.hp/player.maxHp*100)|0}%`;
+    UI.mpbar.style.width = `${(player.mp/player.maxMp*100)|0}%`;
+    UI.xpbar.style.width = `${(player.xp/player.next*100)|0}%`;
+    UI.hptext.textContent = `${player.hp} / ${player.maxHp}`;
+    UI.mptext.textContent = `${player.mp} / ${player.maxMp}`;
+    UI.xptext.textContent = `${player.xp} / ${player.next}`;
+    UI.gold.textContent = `G: ${player.gold}`;
+    UI.floor.textContent = `Floor: ${player.floor}`;
+  }
+
+  function gainXP(n){
+    player.xp += n; log(`経験値 ${n} を獲得！`);
+    while(player.xp>=player.next){
+      player.xp-=player.next; player.lv++; player.next = Math.floor(player.next*1.5);
+      player.maxHp += 6; player.maxMp += 2; player.atk += 2; player.def += 1; player.hp=player.maxHp; player.mp=player.maxMp;
+      log(`レベル${player.lv}に上がった！ 能力が成長した。`);
+    }
+    updateHUD();
+  }
+
+  function startBattle(){
+    mode='battle';
+    const enemy = randomEnemy();
+    battle={ enemy, turn:'player', message:`${enemy.name} が現れた！` };
+    log(battle.message);
+  }
+
+  function randomEnemy(){
+    const pool=[
+      {name:'スライム', maxHp:14, hp:14, atk:4, def:1, xp:6, gold:[2,6]},
+      {name:'コウモリ', maxHp:12, hp:12, atk:5, def:1, xp:7, gold:[3,7]},
+      {name:'ゴブリン', maxHp:18, hp:18, atk:6, def:2, xp:10, gold:[5,9]},
+      {name:'スケルトン', maxHp:22, hp:22, atk:7, def:3, xp:14, gold:[6,12]},
+    ];
+    const base = pool[RNG(pool.length)];
+    // フロア補正
+    const mul = 1 + (player.floor-1)*0.15;
+    const e = JSON.parse(JSON.stringify(base));
+    e.name += player.floor>3 && RNG(100)<25 ? '・狂' : '';
+    e.maxHp = Math.round(e.maxHp*mul); e.hp=e.maxHp; e.atk=Math.round(e.atk*mul); e.def=Math.round(e.def*mul);
+    return e;
+  }
+
+  function damage(atk,def){
+    const raw = Math.max(1, atk - Math.floor(def*0.6));
+    const variance = RNG(3); // 0~2
+    return clamp(raw+variance,1,999);
+  }
+
+  function battleCommand(cmd){
+    if(mode!=='battle') return;
+    if(battle.turn!=='player') return;
+    if(cmd==='attack'){
+      const d = damage(player.atk, battle.enemy.def);
+      battle.enemy.hp = Math.max(0, battle.enemy.hp - d);
+      log(`あなたの攻撃！ ${battle.enemy.name} に ${d} ダメージ。`);
+      battle.turn='enemy';
+    } else if(cmd==='skill'){
+      if(player.mp<4){ log('MPが足りない…'); return; }
+      player.mp -= 4;
+      const d = damage(player.atk+4, battle.enemy.def);
+      battle.enemy.hp = Math.max(0, battle.enemy.hp - d);
+      log(`スキル：フォーカス斬り！ ${battle.enemy.name} に ${d} ダメージ。`);
+      battle.turn='enemy';
+    } else if(cmd==='run'){
+      if(Math.random()<0.55){ log('うまく逃げ切った！'); mode='field'; battle=null; return; }
+      else { log('逃走失敗！'); battle.turn='enemy'; }
+    } else if(cmd==='item'){
+      useItem(); return;
+    }
+    updateHUD();
+  }
+
+  function useItem(){
+    const idx = player.inv.findIndex(i=>i.type==='heal' || i.type==='mp');
+    if(idx<0){ log('使えるアイテムがない'); return; }
+    const it = player.inv.splice(idx,1)[0];
+    if(it.type==='heal'){ player.hp = clamp(player.hp+it.value, 1, player.maxHp); log(`ポーションでHPを${it.value}回復！`); }
+    if(it.type==='mp'){ player.mp = clamp(player.mp+it.value, 0, player.maxMp); log(`エーテルでMPを${it.value}回復！`); }
+    updateHUD();
+  }
+
+  function enemyTurn(){
+    if(mode!=='battle'||!battle) return;
+    const e=battle.enemy;
+    if(e.hp<=0){
+      const g = RNG(e.gold[1]-e.gold[0]+1)+e.gold[0];
+      player.gold+=g; gainXP(e.xp); log(`${e.name} を倒した！ ${e.xp}XP と ${g}G を手に入れた。`);
+      mode='field'; battle=null; updateHUD(); return;
+    }
+    // 攻撃 or ためる
+    if(Math.random()<0.2){
+      e.atk+=2; log(`${e.name} は力をためている…`);
+    } else {
+      const d = damage(e.atk, player.def);
+      player.hp = Math.max(0, player.hp - d);
+      log(`${e.name} の攻撃！ ${d} ダメージを受けた。`);
+      if(player.hp<=0){ player.hp=0; log('あなたは倒れた… ゲームオーバー'); mode='field'; // リスポーン
+        player.hp=Math.ceil(player.maxHp*0.6); player.mp=Math.ceil(player.maxMp*0.6);
+        // 少しゴールドロスト
+        player.gold=Math.max(0, player.gold- Math.ceil(player.gold*0.25));
+        updateHUD();
+      }
+    }
+    updateHUD();
+    battle.turn='player';
+  }
+
+  // キー操作（バトル）
+  addEventListener('keydown', (e)=>{
+    if(mode==='battle'){
+      if(e.key==='j' || e.key==='J' || e.key==='Enter' || e.key===' '){ battleCommand('attack'); e.preventDefault(); }
+      else if(e.key==='k' || e.key==='K'){ battleCommand('skill'); e.preventDefault(); }
+      else if(e.key==='l' || e.key==='L' || e.key==='Escape'){ battleCommand('run'); e.preventDefault(); }
+    }
+  });
+
+  // セーブ/ロード
+  UI.save.onclick = ()=>{
+    const data = JSON.stringify(player);
+    localStorage.setItem('tinyRPG.save', data);
+    log('セーブしました。');
+  };
+  UI.load.onclick = ()=>{
+    const data = localStorage.getItem('tinyRPG.save');
+    if(!data){ log('セーブデータがありません'); return; }
+    Object.assign(player, JSON.parse(data));
+    world = makeMap(player.seed);
+    updateHUD();
+    log('ロードしました。');
+  };
+  UI.heal.onclick = ()=>{
+    const cost = 8;
+    if(player.gold<cost){ log('お金が足りない…'); return; }
+    player.gold-=cost; player.hp=player.maxHp; player.mp=player.maxMp; updateHUD(); log('宿で休んで全回復した。');
+  };
+  UI.reset.onclick = ()=>{
+    Object.assign(player,{x:1,y:1,hp:24,maxHp:24,mp:10,maxMp:10,atk:6,def:2,lv:1,xp:0,next:10,gold:0,inv:[],floor:1,seed:Date.now()});
+    world = makeMap(player.seed); player.x=world.start.x; player.y=world.start.y; updateHUD(); log('最初から再開。');
+  };
+
+  // ---------- メインループ ----------
+  function loop(){
+    tick++;
+    ctx.clearRect(0,0,W,H);
+
+    // 背景グラデ
+    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#0f1732'); g.addColorStop(1,'#0a0f20');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+    // マップ
+    for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) drawTile(x,y,world.map[y][x]);
+
+    // 敵シンボル移動
+    if(mode==='field' && tick%30===0){
+      for(const e of world.enemies){
+        if(RNG(100)<60){ const dir=[[1,0],[-1,0],[0,1],[0,-1]][RNG(4)];
+          const nx=e.x+dir[0], ny=e.y+dir[1];
+          if(canWalk(nx,ny) && !(nx===player.x && ny===player.y)) { e.x=nx; e.y=ny; }
+        }
+      }
+    }
+    // 敵描画
+    for(const e of world.enemies) drawEnemySymbol(e);
+
+    // プレイヤー
+    drawPlayer();
+
+    // フィールド操作
+    if(mode==='field'){
+      if(moveCool>0) moveCool--; else {
+        if(keys['arrowup']||keys['w']) tryMove(0,-1);
+        else if(keys['arrowdown']||keys['s']) tryMove(0,1);
+        else if(keys['arrowleft']||keys['a']) tryMove(-1,0);
+        else if(keys['arrowright']||keys['d']) tryMove(1,0);
+      }
+    } else if(mode==='battle'){
+      // バトルUIオーバーレイ
+      drawBattleOverlay();
+      if(tick%40===0 && battle.turn==='enemy') enemyTurn();
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  function drawBattleOverlay(){
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(0,0,W,H);
+    // パネル
+    const bw=520,bh=240,bx=(W-bw)/2, by=(H-bh)/2;
+    ctx.fillStyle='#0f1838'; ctx.fillRect(bx,by,bw,bh);
+    ctx.strokeStyle='#2a3a6a'; ctx.lineWidth=2; ctx.strokeRect(bx+0.5,by+0.5,bw-1,bh-1);
+
+    // 敵
+    const e=battle.enemy;
+    ctx.fillStyle='#ff9a9a'; ctx.beginPath(); ctx.arc(bx+380, by+120, 46, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.fillRect(bx+362,by+112,8,4); ctx.fillRect(bx+392,by+112,8,4);
+
+    // 敵情報
+    ctx.fillStyle='#cfe2ff'; ctx.font='16px sans-serif'; ctx.fillText(e.name, bx+24, by+34);
+    // HPバー
+    const rate = e.hp/e.maxHp; const bw2=240; const bh2=10;
+    ctx.fillStyle='#1b2854'; ctx.fillRect(bx+24, by+48, bw2, bh2);
+    ctx.fillStyle='#ff5c5c'; ctx.fillRect(bx+24, by+48, Math.max(0, Math.floor(bw2*rate)), bh2);
+    ctx.fillStyle='#a7b8ff'; ctx.fillText(`HP ${e.hp}/${e.maxHp}`, bx+24, by+72);
+
+    // コマンド
+    ctx.fillStyle='#cfe2ff';
+    ctx.fillText('[J]攻撃  [K]スキル  [L]逃げる  [I]アイテム', bx+24, by+210);
+    ctx.restore();
+  }
+
+  // Iキーでアイテム
+  addEventListener('keydown', (e)=>{
+    if(e.key==='i' || e.key==='I'){ if(mode==='battle'){ useItem(); } else { log('戦闘外では使用できない'); } }
+  });
+
+  // 初期化
+  updateHUD();
+  log('ようこそ！ 矢印キー/WASD で移動。敵に触れるとバトル！');
+  loop();
+})();
+</script>
+</body>
+</html>
