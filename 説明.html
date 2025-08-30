@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>宝探しゲームの説明</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Montserrat', 'Noto Sans JP', 'Meiryo', sans-serif;
+            background: linear-gradient(135deg, #fceabb 0%, #f8b500 100%);
+            margin: 0;
+            min-height: 100vh;
+        }
+        .container {
+          
+            border-radius: 18px;
+            box-shadow: 0 8px 32px rgba(44,62,80,0.12);
+            padding: 48px 76px;
+            max-width: 600px;
+            margin: 60px auto;
+            backdrop-filter: blur(2px);
+            border: 2px solid #f7b731;
+        }
+        h1 {
+            font-family: 'Montserrat', 'Noto Sans JP', sans-serif;
+            color: #b8860b;
+            font-size: 2.4rem;
+            letter-spacing: 0.05em;
+            margin-bottom: 28px;
+            text-align: center;
+            text-shadow: 1px 2px 8px #fff8dc;
+        }
+        p {
+            color: #444;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            margin-bottom: 18px;
+        }
+        ul {
+            margin-top: 18px;
+            margin-bottom: 18px;
+            padding-left: 24px;
+        }
+        li {
+            color: #2c3e50;
+            font-size: 1.05rem;
+            margin-bottom: 12px;
+            position: relative;
+            padding-left: 22px;
+        }
+        li::before {
+    
+            position: absolute;
+            left: 0;
+            font-size: 1.1rem;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 24px 8px;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>宝探しゲームの説明</h1>
+        <p>
+            このゲームは、プレイヤーがさまざまな場所を探索し、隠されたURLを見つけ出すワクワクの宝探しゲームです。以下のルールに従って冒険を進めましょう。
+        </p>
+        <ul>
+            <li>URLを見つけると次のステージに繋がるボタンとゲームに繋がるURLを手に入れる</li>
+            <li>URLを押して飛ぶとそこのゲームを遊ぶことができる</li>
+            <li>NPCはゲームについてお言えてくれるかも</li>
+            <li>ステージは全部で5ステージ</li>
+            <li>ゲームも5つ</li>
+        </ul>
+        <p>
+            さあ、冒険の旅に出かけましょう！隠されたURLを見つけて、新たなステージとゲームの世界をめぐってみましょう。
+        </p>
+        <a href="初めの.html" style="display: block; text-align: center; margin-top: 24px; color: #fff; background-color: #f39c12; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: background-color 0.3s ease;">
+            ゲームを始める
+    </div>
+</body>
+</html>

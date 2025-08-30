@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>街の広場アドベンチャー</title>
+<style>
+  :root { --ui:#0f172a; --text:#e5e7eb; --accent:#22d3ee; --accent2:#a78bfa; }
+  html,body{height:100%;margin:0;background:#0b1020;color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:8px;height:100svh;box-sizing:border-box}
+  canvas{background:#12203a;border:2px solid #233a66;border-radius:16px;image-rendering:pixelated;max-width:100%;height:auto;touch-action:none}
+  .hud{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;justify-content:center}
+  .pill{border:1px solid #2e4474;border-radius:999px;padding:.25rem .6rem;font-size:.9rem;background:#0e1a33aa}
+  .pill .key{display:inline-block;min-width:1.2rem;text-align:center;border:1px solid #64748b;border-radius:6px;padding:0 .3rem;margin:0 .2rem;background:#0b1222}
+  .dialog{position:fixed;left:0;right:0;bottom:0;padding:12px 16px;background:#0b1222e6;border-top:2px solid #233a66;box-shadow:0 -10px 35px #0004}
+  .dialog .name{font-weight:700;color:var(--accent)}
+  .dialog .text{margin-top:6px;line-height:1.5}
+  .dialog .hint{margin-top:6px;color:var(--accent2)}
+  .panel{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+    .btn{user-select:none;cursor:pointer;border:1px solid #fdfdfd;border-radius:12px;padding:.5rem .8rem;background:#ffffffaa}
+  .cluster{display:flex;gap:6px;align-items:center}
+  .chip{border:1px dashed #475569;border-radius:8px;padding:.2rem .45rem;background:#0c1430}
+  .chip.have{border-style:solid;background:#0f1d4d}
+  .urlBox{margin-top:4px;padding:.6rem;border:1px solid #334155;border-radius:10px;background:#0c1430}
+  .urlBox a{color:#8be9fd}
+  /* モバイルUI */
+  .mobile{position:fixed;inset:auto 0 8px 0;display:flex;justify-content:space-between;padding:0 8px;gap:8px;pointer-events:none}
+  .stick, .act{pointer-events:auto}
+  .stick{width:128px;height:128px;border-radius:50%;background:#0b1222aa;border:1px solid #334155;position:relative;touch-action:none}
+  .knob{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:56px;height:56px;border-radius:50%;background:#101b36;border:2px solid #475569}
+  .act{display:flex;gap:8px}
+  .act .btn{min-width:64px}
+  @media(min-width:900px){ .mobile{display:none} }
+</style>
+</head>
+<audio id="bgm" src="ハバネラ.mp3" loop autoplay style="display:none"></audio>
+<script>
+  // BGM自動再生対策（ユーザー操作後に再生）
+  document.addEventListener('DOMContentLoaded', function() {
+    const bgm = document.getElementById('bgm');
+    function playBgm() {
+      bgm.volume = 0.5;
+      bgm.play().catch(()=>{});
+      document.removeEventListener('pointerdown', playBgm);
+      document.removeEventListener('keydown', playBgm);
+    }
+    document.addEventListener('pointerdown', playBgm);
+    document.addEventListener('keydown', playBgm);
+  });
+
+  // ヒントリセット：ページリロード時にヒントだけリセット
+  window.addEventListener('beforeunload', function() {
+    const SAVE_KEY = 'url-hunt-progress-v1';
+    const progress = JSON.parse(localStorage.getItem(SAVE_KEY) || '{"pieces":{}}');
+    progress.pieces = {};
+    localStorage.setItem(SAVE_KEY, JSON.stringify(progress));
+  });
+</script>
+
+<body>
+  <div class="wrap">
+    <canvas id="game" width="800" height="480"></canvas>
+
+    <div class="hud">
+      <span class="pill">移動 <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> / 矢印</span>
+      <span class="pill">会話/決定 <span class="key">Space</span></span>
+      <span class="pill">スキップ <span class="key">Enter</span></span>
+      <span class="pill">走る <span class="key">Shift</span></span>
+    </div>
+
+    <div class="panel">
+      <div class="cluster">集めたヒント:
+        <span id="chip0" class="chip">1</span>
+        <span id="chip1" class="chip">2</span>
+        <span id="chip2" class="chip">3</span>
+        <span id="chip3" class="chip">4</span>
+      </div>
+      <button id="reset" class="btn" title="進捗を初期化">進捗リセット</button>
+    </div>
+
+    <div id="unlock" class="urlBox" style="display:none"></div>
+  </div>
+
+  <div id="dialog" class="dialog" style="display:none">
+    <div class="name" id="dName"></div>
+    <div class="text" id="dText"></div>
+    <div class="hint" id="dHint"></div>
+  </div>
+
+  <!-- モバイル操作 -->
+  <div class="mobile">
+    <div id="stick" class="stick"><div class="knob" id="knob"></div></div>
+    <div class="act">
+      <div id="btnTalk" class="btn">会話</div>
+      <div id="btnRun" class="btn">走る</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const cvs = document.getElementById('game');
+  const ctx = cvs.getContext('2d');
+
+  function fitCanvas() {
+    const scale = Math.min(window.innerWidth / cvs.width, (window.innerHeight-170) / cvs.height);
+    cvs.style.width = Math.floor(cvs.width * scale) + 'px';
+  }
+  addEventListener('resize', fitCanvas); fitCanvas();
+
+  // --- マップ（街の広場） ---
+  // 0=床,1=壁,2=草,3=水(噴水),4=看板,5=ベンチ
+  const mapW=40, mapH=24, T=20; 
+  const map = [];
+  function genMap(){
+    for(let y=0;y<mapH;y++){
+      map[y]=[];
+      for(let x=0;x<mapW;x++){
+        const border = (x===0||y===0||x===mapW-1||y===mapH-1) ? 1 : 0;
+        let v = border?1:0;
+        if(!border) v=0; // 基本は床
+        map[y][x]=v;
+      }
+    }
+    // 広場中央
+    for(let y=6;y<18;y++) for(let x=6;x<34;x++) map[y][x]=0;
+
+    // 噴水
+    for(let y=10;y<14;y++) for(let x=18;x<22;x++) map[y][x]=3;
+
+    // ベンチ
+    map[7][7]=5; map[7][32]=5;
+    map[16][7]=5; map[16][32]=5;
+
+    // 掲示板
+    map[5][20]=4;
+    map[12][35]=4;
+
+        map[7][7]=5; map[7][32]=5;
+    map[16][7]=5; map[16][32]=5;
+
+    // 掲示板
+    map[5][20]=4;
+    map[12][35]=4;
+
+    // 飾り配置
+    map[8][12]=6; map[8][28]=6;
+    map[15][12]=6; map[15][28]=6;
+
+    map[6][18]=7; map[6][22]=7;
+    map[17][18]=7; map[17][22]=7;
+
+    map[12][8]=8; map[12][32]=8;
+
+    map[12][20]=9; // 石像
+    }
+  genMap();
+
+  // --- プレイヤー ---
+  const player = { x: T*20, y: T*12, r: 8, speed: 2.0 };
+  const keys = {};
+  addEventListener('keydown', e=>{ keys[e.key.toLowerCase()]=true; if([' ','enter'].includes(e.key.toLowerCase())) e.preventDefault(); });
+  addEventListener('keyup',   e=>{ keys[e.key.toLowerCase()]=false; });
+
+  // --- NPC ---
+  const npcs = [
+    { id:'elder', name:'市長', x:T*20, y:T*8,
+      dialog:[
+        '元々二択のクイズ...むむむむ',
+  
+      ],
+      hintPiece: 'https://'
+    },
+    { id:'cat', name:'頭のいい人', x:T*28, y:T*12,
+      dialog:[ '某テレビ番組みたいだな' ],
+      hintPiece: 'ge-mutyuudokusya.github.io'
+    },
+    { id:'guard', name:'衛兵', x:T*12, y:T*16,
+      dialog:[ '✞キーで操作するみたい' ],
+      hintPiece: '/プロジェクター'
+    },
+    { id:'kid', name:'子ども', x:T*20, y:T*16,
+      dialog:[ 'トロッコ楽しかった！' ],
+      hintPiece: '\index.html'
+    },
+  ];
+
+  // --- 調べ物 ---
+  const interactables = [
+    { type:'sign', name:'掲示板', x:T*20, y:T*5, text:'「子供たちを喜ばせるために作ったようだ」' },
+    { type:'sign', name:'掲示板', x:T*35, y:T*12, text:'「つづきは “Javascriptを使ってるみたい”」' },
+    { type:'glow', name:'ベンチの陰', x:T*7, y:T*16, text:'５問正解できるかな？' },
+  ];
+
+  // --- 進捗管理 ---
+  const SAVE_KEY = 'url-hunt-progress-v1';
+  const progress = JSON.parse(localStorage.getItem(SAVE_KEY) || '{"pieces":{}}');
+  function save(){ localStorage.setItem(SAVE_KEY, JSON.stringify(progress)); updateChips(); checkUnlock(); }
+  function addPiece(piece){ progress.pieces[piece]=true; showToast('ヒントを手に入れた: ' + piece); save(); }
+
+  // --- ダイアログ ---
+  const dialogEl = document.getElementById('dialog');
+  const dName = document.getElementById('dName');
+  const dText = document.getElementById('dText');
+  const dHint = document.getElementById('dHint');
+  let dialogState = null;
+  function openDialog(name, lines, hint){
+    dName.textContent = name;
+    dText.textContent = lines[0] || '';
+    dHint.textContent = hint ? `（ヒントの断片を思い出した…）` : '';
+    dialogEl.style.display='block';
+    dialogState = { lines, idx:0 };
+  }
+  function advanceDialog(){
+    if(!dialogState) return;
+    dialogState.idx++;
+    if(dialogState.idx >= dialogState.lines.length){ closeDialog(); }
+    else{ dText.textContent = dialogState.lines[dialogState.idx]; }
+  }
+  function closeDialog(){ dialogEl.style.display='none'; dialogState=null; }
+
+  // --- 粒子（水しぶき） ---
+  let particles = [];
+  function spawnParticle(cx, cy) {
+    particles.push({
+      x: cx + (Math.random()*20-10),
+      y: cy,
+      vx: (Math.random()-0.5)*0.5,
+      vy: -1.5 - Math.random()*1.0,
+      life: 60 + Math.random()*30,
+      r: 2 + Math.random()*1.5
+    });
+  }
+  function updateParticles() {
+    particles.forEach(p=>{
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.05;
+      p.life--;
+    });
+    particles = particles.filter(p=>p.life>0);
+  }
+  function drawParticles() {
+    ctx.save();
+    particles.forEach(p=>{
+      ctx.globalAlpha = Math.max(0, p.life/90);
+      ctx.fillStyle = '#aef';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  // --- 会話 ---
+  function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
+  const TALK_RANGE = 24;
+  function tryTalk(){
+    let target=null, minD=1e9;
+    for(const n of npcs){
+      const d = dist(player,n);
+      if(d<TALK_RANGE && d<minD){minD=d; target=n;}
+    }
+    if(target){
+      openDialog(target.name,target.dialog,target.hintPiece && !progress.pieces[target.hintPiece]);
+      if(target.hintPiece && !progress.pieces[target.hintPiece]) addPiece(target.hintPiece);
+      return;
+    }
+    for(const it of interactables){
+      const d=Math.hypot(player.x-it.x,player.y-it.y);
+      if(d<TALK_RANGE){ openDialog(it.name,[it.text],null); return; }
+    }
+    showToast('誰も近くにいない…');
+  }
+  addEventListener('keydown', e=>{ if(e.key===' '){tryTalk();} else if(e.key==='Enter'){advanceDialog();} });
+
+  // --- HUD ---
+  const chips = [0,1,2,3].map(i=>document.getElementById('chip'+i));
+  const PIECES = ['https://','ge-mutyuudokusya.github.io','/プロジェクター','\index.html'];
+  function updateChips(){
+    PIECES.forEach((p,i)=>{ chips[i].classList.toggle('have',!!progress.pieces[p]); chips[i].textContent=progress.pieces[p]?p:(i+1); });
+  }
+  updateChips();
+
+  const unlockBox = document.getElementById('unlock');
+  function checkUnlock(){
+    const all = PIECES.every(p=>progress.pieces[p]);
+    if(all){
+      const url = PIECES.join('');
+      unlockBox.style.display='block';
+      unlockBox.innerHTML = `<div>URLが解放されました！</div><div><a href="https://ge-mutyuudokusya.github.io/sagasi/プロジェクター\index.html" target="_blank" rel="noopener">→ https://ge-mutyuudokusya.github.io/sagasi/プロジェクター\index.html</a></div>  <small><button style="  background: #540050;color:#8be9fd; "><a href="サバク.html">次のステージに行く</a></button></small>`;
+    } else { unlockBox.style.display='none'; unlockBox.innerHTML=''; }
+  }
+  checkUnlock();
+
+  document.getElementById('reset').addEventListener('click', ()=>{ localStorage.removeItem(SAVE_KEY); progress.pieces={}; updateChips(); checkUnlock(); showToast('進捗をリセットしました'); });
+
+  // --- モバイル操作 ---
+  const stick=document.getElementById('stick'), knob=document.getElementById('knob');
+  const btnTalk=document.getElementById('btnTalk'), btnRun=document.getElementById('btnRun');
+  let joy={dx:0,dy:0,active:false}, runHold=false;
+  function stickPoint(e){
+    const r=stick.getBoundingClientRect(); const x=(e.touches?e.touches[0].clientX:e.clientX)-r.left-r.width/2; const y=(e.touches?e.touches[0].clientY:e.clientY)-r.top-r.height/2;
+    const mag=Math.hypot(x,y); const max=r.width/2-10; const m=mag>max?max/mag:1; const kx=x*m, ky=y*m;
+    knob.style.transform=`translate(${kx}px, ${ky}px)`; joy.dx=(kx/max); joy.dy=(ky/max); joy.active=true;
+  }
+  function stickEnd(){ knob.style.transform=`translate(-50%,-50%)`; joy.dx=0; joy.dy=0; joy.active=false; }
+  ['mousedown','mousemove','touchstart','touchmove'].forEach(ev=>{ stick.addEventListener(ev,(e)=>{e.preventDefault();stickPoint(e);},{passive:false}); });
+  ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=>{ stick.addEventListener(ev,(e)=>{e.preventDefault();stickEnd();},{passive:false}); });
+  btnTalk.addEventListener('click', ()=>tryTalk());
+  btnRun.addEventListener('pointerdown', ()=> runHold=true);
+  btnRun.addEventListener('pointerup', ()=> runHold=false);
+  btnRun.addEventListener('pointerleave',()=> runHold=false);
+
+  // --- トースト ---
+  let toastT=0, toastMsg='';
+  function showToast(msg){ toastMsg=msg; toastT=90; }
+  function drawToast(){ if(toastT<=0) return; toastT--; ctx.save(); ctx.globalAlpha=Math.max(0,Math.min(1,toastT/90)); const w=ctx.measureText?Math.min(600,ctx.measureText(toastMsg).width+40):400; const x=cvs.width/2, y=40; ctx.fillStyle='#0b1222cc'; roundedRect(x-w/2,y-18,w,36,10,true); ctx.fillStyle='#cbd5e1'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='16px ui-sans-serif'; ctx.fillText(toastMsg,x,y); ctx.restore(); }
+
+  // --- ゲームループ ---
+  function update(){
+    let vx=0,vy=0;
+    if(keys['arrowleft']||keys['a']) vx-=1;
+    if(keys['arrowright']||keys['d']) vx+=1;
+    if(keys['arrowup']||keys['w']) vy-=1;
+    if(keys['arrowdown']||keys['s']) vy+=1;
+    if(joy.active){ vx+=joy.dx; vy+=joy.dy; }
+    const mag=Math.hypot(vx,vy)||1; const run=keys['shift']||runHold; const spd=player.speed*(run?1.6:1.0);
+    let nx=player.x+(vx/mag)*spd; let ny=player.y+(vy/mag)*spd;
+
+    const tx=Math.floor(nx/T), ty=Math.floor(ny/T);
+    if(map[ty]&&map[ty][tx]===3){ nx=player.x+(vx/mag)*(spd*0.5); ny=player.y+(vy/mag)*(spd*0.5); }
+    if(!isWalkable(nx,player.y)) nx=player.x;
+    if(!isWalkable(player.x,ny)) ny=player.y;
+    player.x=nx; player.y=ny;
+  }
+  function isWalkable(px,py){
+    const tx=Math.floor(px/T), ty=Math.floor(py/T); const v=(map[ty]||[])[tx];
+    return v!==1 && v!==5;
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,cvs.width,cvs.height);
+    for(let y=0;y<mapH;y++){
+      for(let x=0;x<mapW;x++){
+        const v=map[y][x];
+        ctx.fillStyle=(v===1)?'#1e293b':(v===2?'#163a29':(v===3?'#0a5d8f':'#3b3b3b'));
+        ctx.fillRect(x*T,y*T,T,T);
+
+        if(v===4){ // 掲示板
+          ctx.fillStyle='#deb887'; roundedRect(x*T+4,y*T+4,12,12,2,true);
+        }
+        if(v===5){ // ベンチ
+          ctx.fillStyle='#444'; roundedRect(x*T+2,y*T+6,16,8,2,true);
+        }
+        if(v===3){ // 噴水アニメーション
+          const t = performance.now()/400;
+          ctx.fillStyle='#1ca3ec';
+          ctx.fillRect(x*T,y*T,T,T);
+if(v===6){ // 街灯
+  ctx.fillStyle='#aaa';
+  ctx.fillRect(x*T+8,y*T,4,16);
+  ctx.beginPath();
+  ctx.arc(x*T+10,y*T,6,0,Math.PI*2);
+  ctx.fillStyle='yellow';
+  ctx.fill();
+}
+if(v===7){ // 樹木
+  ctx.fillStyle='#4d7c0f';
+  ctx.beginPath();
+  ctx.arc(x*T+10,y*T+10,10,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle='#654321';
+  ctx.fillRect(x*T+8,y*T+14,4,6);
+}
+if(v===8){ // 花壇
+  ctx.fillStyle='#2a3e16';
+  ctx.fillRect(x*T+2,y*T+2,16,16);
+  ctx.fillStyle='red';
+  ctx.fillRect(x*T+6,y*T+6,4,4);
+  ctx.fillStyle='yellow';
+  ctx.fillRect(x*T+10,y*T+10,4,4);
+}
+if(v===9){ // 石像
+  ctx.fillStyle='#999';
+  ctx.beginPath();
+  ctx.arc(x*T+10,y*T+10,8,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle='#666';
+  ctx.fillRect(x*T+7,y*T+14,6,6);
+}
+          // 水面の波紋
+          ctx.fillStyle='rgba(255,255,255,0.4)';
+          ctx.beginPath();
+          ctx.arc(x*T+10,y*T+10,4+Math.sin(t+x+y)*2,0,Math.PI*2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x*T+10,y*T+10,8+Math.cos(t+x*0.5+y*0.5)*1.5,0,Math.PI*2);
+          ctx.strokeStyle='rgba(255,255,255,0.2)';
+          ctx.stroke();
+
+          // プレイヤー距離で水しぶき発生率を変化
+          const fountainCenter = {x:x*T+10,y:y*T+10};
+          const d = dist(player,fountainCenter);
+          let prob = 0.05;
+          if(d < 80) prob = 0.2;
+          if(Math.random()<prob){ spawnParticle(x*T+10,y*T+5); }
+        }
+      }
+    }
+
+    // 光るオブジェクト
+    for(const it of interactables){
+      if(it.type==='glow'){
+        const t = performance.now()/300;
+        const r = 6 + Math.sin(t)*2;
+        ctx.beginPath();
+        ctx.arc(it.x, it.y, r, 0, Math.PI*2);
+        ctx.fillStyle='rgba(255,255,200,0.7)';
+        ctx.fill();
+      }
+    }
+
+    // NPC
+    for(const n of npcs){ drawChar(n.x,n.y,'#eab308'); if(dist(player,n)<TALK_RANGE){ bubble(n.x,n.y-18,'話す'); } }
+    // プレイヤー
+    drawChar(player.x,player.y,'#60a5fa');
+    // インタラクト名
+    for(const it of interactables){ if(Math.hypot(player.x-it.x,player.y-it.y)<TALK_RANGE){ bubble(it.x,it.y-18,it.name); } }
+
+    drawParticles(); // 水しぶき描画
+    drawToast();
+  }
+
+  function drawChar(x,y,color){ ctx.save(); ctx.translate(x,y); roundedRect(-10,-10,20,20,6,true,color); ctx.fillStyle='#0b1222'; ctx.fillRect(-4,-2,2,2); ctx.fillRect(2,-2,2,2); ctx.fillRect(-2,3,4,2); ctx.restore(); }
+  function bubble(x,y,txt){ ctx.save(); ctx.font='12px ui-sans-serif'; const w=Math.max(42,ctx.measureText(txt).width+16); ctx.fillStyle='#0b1222cc'; roundedRect(x-w/2,y-16,w,18,6,true); ctx.strokeStyle='#1f2a44'; ctx.strokeRect(x-w/2,y-16,w,18); ctx.fillStyle='#cbd5e1'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(txt,x,y-7); ctx.restore(); }
+  function roundedRect(x,y,w,h,r,fill,color){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); if(fill){ ctx.fillStyle=color||ctx.fillStyle; ctx.fill(); } }
+
+  function loop(){ update(); updateParticles(); draw(); requestAnimationFrame(loop); }
+  loop();
+
+  function tryPickGlow(){ for(const it of interactables){ if(it.type==='glow' && Math.hypot(player.x-it.x,player.y-it.y)<TALK_RANGE){ openDialog(it.name,[it.text],null); return true; } } return false; }
+  const origTryTalk=tryTalk; tryTalk=function(){ if(tryPickGlow()) return; origTryTalk(); }
+
+  if(!localStorage.getItem('urlhunt-first')){ showToast('市民に近づいて Space（または会話ボタン）で話しかけよう'); localStorage.setItem('urlhunt-first','1'); }
+})();
+</script>
+</body>
+</html>

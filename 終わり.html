@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<!-- 豪華な演出のための追加要素 -->
+<!-- ゴールドのきらめき背景 -->
+<style>
+body::before {
+    content: "";
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 0;
+    background: radial-gradient(circle at 50% 30%, #fffbe6 0%, #ffe066 40%, #ffb300 100%);
+    opacity: 0.25;
+    pointer-events: none;
+    animation: bg-glow 6s ease-in-out infinite alternate;
+}
+@keyframes bg-glow {
+    0% { opacity: 0.22; }
+    100% { opacity: 0.33; }
+}
+</style>
+<!-- キラキラアニメーション -->
+<style>
+.sparkle {
+    position: fixed;
+    pointer-events: none;
+    z-index: 30;
+    width: 40px;
+    height: 40px;
+    background: none;
+    animation: sparkle-anim 2.5s linear infinite;
+}
+@keyframes sparkle-anim {
+    0% { opacity: 0; transform: scale(0.5) rotate(0deg);}
+    10% { opacity: 1; transform: scale(1.2) rotate(20deg);}
+    50% { opacity: 1; transform: scale(1) rotate(180deg);}
+    90% { opacity: 1; transform: scale(1.2) rotate(340deg);}
+    100% { opacity: 0; transform: scale(0.5) rotate(360deg);}
+}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ランダムな位置にキラキラを複数配置
+    for (let i = 0; i < 12; i++) {
+        const s = document.createElement('div');
+        s.className = 'sparkle';
+        s.style.left = (Math.random() * 90 + 5) + 'vw';
+        s.style.top = (Math.random() * 60 + 10) + 'vh';
+        s.style.animationDelay = (Math.random() * 2.5) + 's';
+        s.innerHTML = `<svg width="40" height="40"><polygon points="20,0 24,14 39,14 27,22 32,36 20,28 8,36 13,22 1,14 16,14" fill="#fff700" stroke="#fff" stroke-width="2" opacity="0.85"/></svg>`;
+        document.body.appendChild(s);
+    }
+});
+</script>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ゲームクリア</title>
+    <style>
+        /* 花火アニメーション用 */
+        #fireworks-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 10;
+        }
+        /* 鳥アニメーション用 */
+        .bird {
+            position: fixed;
+            top: 20vh;
+            left: -100px;
+            width: 80px;
+            height: 60px;
+            z-index: 20;
+            pointer-events: none;
+            animation: fly-bird 6s linear infinite;
+        }
+        @keyframes fly-bird {
+            0% { left: -100px; top: 20vh; }
+            40% { top: 18vh; }
+            60% { top: 22vh; }
+            100% { left: 110vw; top: 20vh; }
+        }
+        body {
+            background: #222;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .clear-message {
+            font-size: 3em;
+            font-weight: bold;
+            letter-spacing: 0.1em;
+            margin-bottom: 20px;
+            animation: shine 2s infinite alternate;
+        }
+        @keyframes shine {
+            from { color: #fff700; text-shadow: 0 0 10px #fff700; }
+            to { color: #fff; text-shadow: 0 0 30px #fff700, 0 0 10px #fff; }
+        }
+        .button {
+            padding: 12px 32px;
+            font-size: 1.2em;
+            border: none;
+            border-radius: 8px;
+            background: #4caf50;
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .button:hover {
+            background: #388e3c;
+        }
+    </style>
+</head>
+<audio id="bgm" src="メサイヤ.mp3" autoplay loop></audio>
+<audio id="se" src="victory-se.mp3"></audio>
+<!-- BGM自動再生のためのユーザー操作促進スクリプト -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const bgm = document.getElementById('bgm');
+    // iOSや一部ブラウザで自動再生を有効にするため、ユーザー操作を待つ
+    function tryPlayBGM() {
+        bgm.play().catch(() => {});
+        document.removeEventListener('click', tryPlayBGM);
+        document.removeEventListener('touchstart', tryPlayBGM);
+    }
+    document.addEventListener('click', tryPlayBGM);
+    document.addEventListener('touchstart', tryPlayBGM);
+});
+</script>
+
+<script>
+    
+
+// 花火アニメーション
+function randomBetween(a, b) {
+    return a + Math.random() * (b - a);
+}
+
+class Firework {
+    constructor(canvas, ctx) {
+        this.canvas = canvas;
+        this.ctx = ctx;
+        this.x = randomBetween(canvas.width * 0.2, canvas.width * 0.8);
+        this.y = canvas.height;
+        this.targetY = randomBetween(canvas.height * 0.2, canvas.height * 0.5);
+        this.color = `hsl(${Math.floor(Math.random() * 360)}, 80%, 60%)`;
+        this.radius = 2;
+        this.speed = randomBetween(7, 10);
+        this.exploded = false;
+        this.particles = [];
+    }
+    update() {
+        if (!this.exploded) {
+            this.y -= this.speed;
+            if (this.y <= this.targetY) {
+                this.exploded = true;
+                this.createParticles();
+            }
+        } else {
+            this.particles.forEach(p => p.update());
+        }
+    }
+    draw() {
+        if (!this.exploded) {
+            this.ctx.beginPath();
+            this.ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            this.ctx.fillStyle = this.color;
+            this.ctx.fill();
+        } else {
+            this.particles.forEach(p => p.draw());
+        }
+    }
+    createParticles() {
+        const count = 32 + Math.floor(Math.random() * 16);
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2) * (i / count);
+            const speed = randomBetween(2, 6);
+            this.particles.push(new Particle(this.x, this.y, angle, speed, this.color));
+        }
+    }
+    isDone() {
+        return this.exploded && this.particles.every(p => p.alpha <= 0);
+    }
+}
+
+class Particle {
+    constructor(x, y, angle, speed, color) {
+        this.x = x;
+        this.y = y;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.gravity = 0.06;
+        this.alpha = 1;
+        this.color = color;
+        this.radius = 2;
+    }
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += this.gravity;
+        this.alpha -= 0.018;
+        if (this.alpha < 0) this.alpha = 0;
+    }
+    draw() {
+        const ctx = window._fireworks_ctx;
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 10;
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+function resizeCanvas(canvas) {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
+window.addEventListener('DOMContentLoaded', function() {
+    // 花火canvas生成
+    const canvas = document.createElement('canvas');
+    canvas.id = 'fireworks-canvas';
+    document.body.appendChild(canvas);
+    resizeCanvas(canvas);
+    const ctx = canvas.getContext('2d');
+    window._fireworks_ctx = ctx;
+
+    let fireworks = [];
+    let lastFirework = 0;
+
+    function animateFireworks(ts) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 新しい花火を定期的に追加
+        if (!lastFirework || ts - lastFirework > 700 + Math.random() * 700) {
+            fireworks.push(new Firework(canvas, ctx));
+            lastFirework = ts;
+        }
+
+        fireworks.forEach(fw => {
+            fw.update();
+            fw.draw();
+        });
+        fireworks = fireworks.filter(fw => !fw.isDone());
+
+        requestAnimationFrame(animateFireworks);
+    }
+    animateFireworks();
+
+    window.addEventListener('resize', () => resizeCanvas(canvas));
+});
+
+</script>
+<body>
+    <div class="clear-message">ゲームクリア！</div>
+   <a href="初めの.html" ><button class="button" onclick="location.reload()">もう一度プレイ</button></a>
+<style>
+    /* サイトカードのサイズを統一 */
+    .site-card {
+        width: 980px;
+        height: 240px;
+        background: rgba(255,255,255,0.08);
+        border-radius: 16px;
+        box-shadow: 0 4px 16px #0004;
+        overflow: hidden;
+        transition: transform 0.2s;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+    }
+    .site-card img {
+        width: 100%;
+        height: 120px;
+        object-fit: cover;
+        display: block;
+    }
+    .site-card .card-title {
+        padding: 12px;
+        color: #fff;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+<script>
+    // 既存のカードにクラスを付与し、タイトルdivもクラス化
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('div[style*="width: 180px"]').forEach(function(card) {
+            card.classList.add('site-card');
+            let title = card.querySelector('div');
+            if (title) title.classList.add('card-title');
+        });
+    });
+</script>
+   <div style="display: flex; flex-wrap: wrap; gap: 32px; justify-content: center; margin-top: 40px;">
+    <a href="https://scratch.mit.edu/projects/1160905467/" target="_blank" style="text-decoration: none;">
+        <div style="width: 180px; background: rgba(255,255,255,0.08); border-radius: 16px; box-shadow: 0 4px 16px #0004; overflow: hidden; transition: transform 0.2s; text-align: center;">
+            <img src="1.png" alt="サムネ1" style="width: 100%; display: block;">
+            <div style="padding: 12px; color: #fff;">漢字釣</div>
+        </div>
+    </a>
+    <a href="https://ge-mutyuudokusya.github.io/sagasi/URL探し\index.html" target="_blank" style="text-decoration: none;">
+        <div style="width: 180px; background: rgba(255,255,255,0.08); border-radius: 16px; box-shadow: 0 4px 16px #0004; overflow: hidden; transition: transform 0.2s; text-align: center;">
+            <img src="2.png" alt="サムネ2" style="width: 100%; display: block;">
+            <div style="padding: 12px; color: #fff;">URL探し</div>
+        </div>
+    </a>
+    <a href="https://ge-mutyuudokusya.github.io/sagasi/プロジェクター\index.html" target="_blank" style="text-decoration: none;">
+        <div style="width: 180px; background: rgba(255,255,255,0.08); border-radius: 16px; box-shadow: 0 4px 16px #0004; overflow: hidden; transition: transform 0.2s; text-align: center;">
+            <img src="3.png" alt="サムネ3" style="width: 100%; display: block;">
+            <div style="padding: 12px; color: #fff;">トロッコゲーム</div>
+        </div>
+    </a>
+    <a href="https://ge-mutyuudokusya.github.io/sagasi/RPG\RPG.html" target="_blank" style="text-decoration: none;">
+        <div style="width: 180px; background: rgba(255,255,255,0.08); border-radius: 16px; box-shadow: 0 4px 16px #0004; overflow: hidden; transition: transform 0.2s; text-align: center;">
+            <img src="4.png" alt="サムネ4" style="width: 100%; display: block;">
+            <div style="padding: 12px; color: #fff;">終わらないRPG</div>
+        </div>
+    </a>
+    <a href="https://ge-mutyuudokusya.github.io/sagasi/逃げ\index.html" target="_blank" style="text-decoration: none;">
+        <div style="width: 180px; background: rgba(255,255,255,0.08); border-radius: 16px; box-shadow: 0 4px 16px #0004; overflow: hidden; transition: transform 0.2s; text-align: center;">
+            <img src="5.png" alt="サムネ5" style="width: 100%; display: block;">
+            <div style="padding: 12px; color: #fff;">隠れてGO</div>
+        </div>
+    </a>
+    <a href="https://scratch.mit.edu/projects/715594447" target="_blank" style="text-decoration: none;">
+        <div style="width: 180px; background: rgba(255,255,255,0.08); border-radius: 16px; box-shadow: 0 4px 16px #0004; overflow: hidden; transition: transform 0.2s; text-align: center;">
+            <img src="6.png" alt="サムネ6" style="width: 100%; display: block;">
+            <div style="padding: 12px; color: #fff;">fairy dash</div>
+        </div>
+    </a>
+    
+</div>
+</body>
+</html>
