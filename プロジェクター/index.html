@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>トロッコクイズゲーム</title>
+  <style>
+    body { margin: 0; background: #000; color: #fff; font-size: 22px; overflow: hidden; }
+    #game {
+      width: 100vw; height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      position: relative; perspective: 1000px;
+      transition: box-shadow 0.5s;
+    }
+    #question { font-size: 88px; margin-top: 120px; margin-bottom: 140px; text-align: center; z-index: 5; }
+    #choices { display: flex; justify-content: space-around;  width: 60%; height:25%;position: relative; margin-top: 0; z-index: 5; }
+    .choice { font-size: 48px; width: 45%; padding: 0px; background: #333; border: 5px solid #ff0062; border-radius: 15px; display: flex; flex-direction: column; align-items: center; }
+    .choicea { font-size: 48px; width: 45%; padding:0px; background: #333; border: 5px solid #00efff; border-radius: 15px; display: flex; flex-direction: column; align-items: center; }
+    .choice-img { width: 150px; height: 150px; margin-bottom: 10px; }
+    #timer { position: absolute; top: 10px; font-size: 42px; color: yellow; z-index: 5; }
+    #result { position: absolute; top: 30%; font-size: 48px; display: none; z-index: 6; }
+    #restartButton { position: absolute; top: 55%; font-size: 28px; padding: 10px 20px; display: none; z-index: 12; }
+    #startScreen { width: 100vw; height: 100vh; background: #000; color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    #startScreen h1 { font-size: 48px; margin-bottom: 20px; }
+    #startButton { font-size: 24px; padding: 10px 30px; }
+    #trolley { width: 200px; position: absolute; bottom: 50px; transition: left 0.5s, transform 0.5s; transform: rotateX(15deg) scale(6.1); z-index: 10; }
+    #trolley.shake { animation: shake3D 0.5s ease-in-out; }
+    @keyframes shake3D { 0% { transform: rotateX(15deg) translateX(0) scale(6.1); } 10% { transform: rotateX(15deg) translateX(-50px) scale(6.1); }20% { transform: rotateX(15deg) translateX(100px) scale(6.1); } 30% { transform: rotateX(15deg) translateX(-70px) scale(6.1); } 40% { transform: rotateX(15deg) translateX(60px) scale(6.1); } 50% { transform: rotateX(15deg) translateX(100) scale(6.1); }60% { transform: rotateX(15deg) translateX(-100) scale(6.1); }70% { transform: rotateX(15deg) translateX(100) scale(6.1); }80% { transform: rotateX(15deg) translateX(-100) scale(6.1); }90% { transform: rotateX(15deg) translateX(100) scale(6.1); }100% { transform: rotateX(15deg) translateX(0) scale(6.1); } }
+
+    .flash-red { box-shadow: 0 0 100px 50px red inset !important; }
+    .flash-green { box-shadow: 0 0 100px 50px lime inset !important; }
+  </style>
+</head>
+<body>
+  <div id="startScreen">
+    <h1>トロッコクイズアドベンチャー</h1>
+    <button id="startButton">スタート</button>
+  </div>
+  <div id="game" style="display:none;">
+    <canvas id="starCanvas" width="1920" height="1080" style="position:absolute;top:0;left:0;z-index:0;"></canvas>
+    <div id="timer">残り: 10 秒</div>
+    <div id="question"></div>
+    <div id="choices">
+      <div class="choicea" id="leftChoice"><img class="choice-img" src="" /><div class="choice-text"></div></div>
+      <div class="choice" id="rightChoice"><img class="choice-img" src="" /><div class="choice-text"></div></div>
+    </div>
+    <img id="trolley" src="trolley.png" style="left: 45%;" />
+    <canvas id="particleCanvas" width="1920" height="1080" style="position:absolute;top:0;left:0;pointer-events:none;z-index:20;"></canvas>
+    <div id="result"></div>
+    <button id="restartButton">もう一度しますか</button>
+  </div>
+
+  <!-- Audio files -->
+  <audio id="correctSound" src="correct.mp3"></audio>
+  <audio id="wrongSound" src="wrong.mp3"></audio>
+  <audio id="trolleySound" src="trolley.mp3"></audio>
+  <audio id="bgm1" src="bgm1.mp3"></audio>
+  <audio id="bgm2" src="bgm2.mp3"></audio>
+  <audio id="bgm3" src="bgm3.mp3"></audio>
+  <audio id="startBgm" src="start.mp3"></audio>
+  <audio id="clearBgm" src="clear.mp3"></audio>
+  <audio id="clearSe" src="clear_se.mp3"></audio>
+
+  <script>
+    // 星の3Dトンネル風背景
+    const starCanvas = document.getElementById("starCanvas");
+    const sctx = starCanvas.getContext("2d");
+    let stars = [];
+    let starColor = "white"; // 星の色を変える
+    for (let i=0;i<300;i++) {
+      stars.push({
+        x: (Math.random()-0.5)*2000,
+        y: (Math.random()-0.5)*2000,
+        z: Math.random()*2000
+      });
+    }
+    function drawStars() {
+      sctx.clearRect(0,0,starCanvas.width, starCanvas.height);
+      for (let star of stars) {
+        star.z -= 10;
+        if (star.z <= 0) {
+          star.x = (Math.random()-0.5)*2000;
+          star.y = (Math.random()-0.5)*2000;
+          star.z = 2000;
+        }
+        const k = 128.0 / star.z;
+        const sx = star.x * k + starCanvas.width/2;
+        const sy = star.y * k + starCanvas.height/2;
+        if (sx < 0 || sx >= starCanvas.width || sy < 0 || sy >= starCanvas.height) continue;
+        const size = (1 - star.z / 2000) * 5;
+        sctx.fillStyle = starColor;
+        sctx.fillRect(sx, sy, size, size);
+      }
+      requestAnimationFrame(drawStars);
+    }
+    drawStars();
+
+    // ゲームデータ
+    let questionPool = [
+     { q: "日本の首都は？",    left: "東京", right: "大阪",                         answer: "left", hard: false, imgL:"東京.jpg", imgR:"大阪.jpg" },
+      { q: "富士山の高さは？",  left: "3,776m", right: "2,500m",                     answer: "left", hard: true, imgL:"09_aboutfujisan.jpg", imgR:"09_aboutfujisan.jpg" },
+      { q: "日本の国鳥は？",    left: "ツル", right: "キジ",                         answer: "right", hard: true, imgL:"nbat_b16.png", imgR:"bird_cute_kiji_10917.png" },
+      { q: "日本で一番長い川は？", left: "利根川", right: "信濃川",                  answer: "right", hard: true, imgL:"00170477000301.jpg", imgR:"150005_05C013.jpg" },
+      { q: "日本の通貨は？",     left: "$", right: "円",                            answer: "right", hard: false, imgL:"mark_dollar.png", imgR:"mark_yen.png" },
+      { q: "キャベツはどっち", left: "こっち？", right: "こっち？",                  answer: "right", hard: true, imgL:"レタス.png", imgR:"キャベツ.png" },
+      { q: "マリオの苗字",     left: "マリオ", right: "スーパー",                   answer: "left", hard: false, imgL:"20160908072628_350_.jpg", imgR:"20160908072628_350_.jpg" },
+      { q: "日本の国花は？",    left: "桜", right: "菊",                           answer: "left", hard: true, imgL:"sakura_kaika.png", imgR:"flower_kiku.png" },
+      { q: "食パンの「耳」はアメリカでは何？", left: "手首", right: "かかと",         answer: "right", hard: true, imgL:"body_te.png", imgR:"body_foot_kakato.png" },
+      { q: "昨日は何曜日？",   left: "日曜日", right: "土曜日",                     answer: "right", hard: false, imgL:"week7_sun.png", imgR:"week6_sat.png" },
+      { q: "大きい県は？",    left: "岩手", right: "北海道",                        answer: "left", hard: false, imgL:"画像2.png", imgR:"画像1.png" },
+      { q: "電球を作ったのは？", left: "ニコラ・テスラ", right: "トーマス・エジソン", answer: "right", hard: false, imgL:"Tesla_Sarony.jpg", imgR:"5937895c-0da7-4055-802d-0244ae651934_webp.webp" },
+      { q: "右はどっち？", left: "←", right: "→",                                 answer: "right", hard: false, imgL:"left-arrow.png", imgR:"right-arrow.png" },
+      { q: "タコピーは何星人？", left: "ハッピー星人", right: "ナメック星人",        answer: "left", hard: true, imgL:"main_9x1YSvWvU109z-lo8p486h8fdDy8CNSi.jpg", imgR:"20606.jpg" },
+      
+      { q: "鬼舞辻無惨はどっち？", left: "こっち？", right: "こっち？",              answer: "right", hard: true, imgL:"smooth-criminal-billion.webp", imgR:"img_chara_16.jpg" },
+     
+      { q: "ピカチューのオスは？",    left: "こっち？", right: "こっち？",          answer: "left", hard: true, imgL:"お.png", imgR:"め.png" }, 
+      { q: "日本の最北端は？",  left: "北海道", right: "沖縄",                       answer: "left", hard: false, imgL:"toy_kibori_kuma.png", imgR:"shiisa_one.png" },
+      { q: "大根はどれ？",        left: "根菜", right: "果物",                    answer: "left", hard: false, imgL:"4_1.jpg", imgR:"4_1.jpg" }
+    ];
+    let correctCount = 0;
+    let acceptingInput = false;
+    let selected = null;
+    let timer = 10;
+    let timerInterval;
+    let currentBgm = null;
+
+    const trolley = document.getElementById("trolley");
+    const result = document.getElementById("result");
+    const questionEl = document.getElementById("question");
+    const leftChoice = document.getElementById("leftChoice");
+    const rightChoice = document.getElementById("rightChoice");
+    const correctSound = document.getElementById("correctSound");
+    const wrongSound = document.getElementById("wrongSound");
+    const trolleySound = document.getElementById("trolleySound");
+    const bgmTracks = [document.getElementById("bgm1"), document.getElementById("bgm2"), document.getElementById("bgm3")];
+    const startScreen = document.getElementById("startScreen");
+    const game = document.getElementById("game");
+    const timerDisplay = document.getElementById("timer");
+    const restartButton = document.getElementById("restartButton");
+    const startBgm = document.getElementById("startBgm");
+    const clearBgm = document.getElementById("clearBgm");
+    const clearSe = document.getElementById("clearSe");
+
+    // パーティクル
+    let particles = [];
+    function createParticles(x, y, color, confetti=false, fire=false) {
+      let count = confetti ? 200 : fire ? 400 : 30;
+      for (let i = 0; i < count; i++) {
+        let c = color;
+        if (fire) {
+          const colors = ["#ff6600","#ff0000","#ffff00","#ffaa00"];
+          c = colors[Math.floor(Math.random()*colors.length)];
+        }
+        particles.push({
+          x: x,
+          y: y,
+          vx: (Math.random() - 0.5) * (fire?30:confetti?20:6),
+          vy: (Math.random() - 0.5) * (fire?30:confetti?20:6),
+          alpha: 1,
+          color: c,
+          size: fire ? 15 : confetti ? 20 : 4
+        });
+      }
+    }
+    function updateParticles(ctx) {
+      particles.forEach((p) => { p.x += p.vx; p.y += p.vy; p.alpha -= 0.02; });
+      particles = particles.filter(p => p.alpha > 0);
+      particles.forEach((p) => { ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size); ctx.globalAlpha = 1; });
+    }
+
+    function getRandomQuestion() { const index = Math.floor(Math.random() * questionPool.length); return questionPool.splice(index, 1)[0]; }
+
+    function loadQuestion() {
+      acceptingInput = false; selected = null; timer = 10;
+      const q = getRandomQuestion(); currentQuestion = q;
+      questionEl.textContent = "Q. " + q.q;
+      leftChoice.querySelector(".choice-text").textContent = "← " + q.left;
+      rightChoice.querySelector(".choice-text").textContent = q.right + " →";
+      leftChoice.querySelector(".choice-img").src = q.imgL;
+      rightChoice.querySelector(".choice-img").src = q.imgR;
+      result.style.display = "none";
+      trolley.style.left = "45%"; timerDisplay.textContent = "残り: 10 秒";
+      game.classList.remove("flash-red", "flash-green");
+      starColor = "white";
+      setTimeout(() => {
+        acceptingInput = true;
+        timerInterval = setInterval(() => {
+          timer--; timerDisplay.textContent = "残り: " + timer + " 秒";
+          if (timer <= 0) { clearInterval(timerInterval); finalizeAnswer(q); }
+        }, 1000);
+      }, 500);
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (!acceptingInput || result.style.display === "block") return;
+      if (e.key === "ArrowLeft") {
+        trolley.style.left = "20%"; selected = "left"; trolleySound.play();
+        starColor = "#00efff";
+      }
+      else if (e.key === "ArrowRight") {
+        trolley.style.left = "70%"; selected = "right"; trolleySound.play();
+        starColor = "#ff0062";
+      }
+    });
+
+    function fadeOutAudio(audio) {
+      let vol = audio.volume;
+      const fade = setInterval(() => { vol -= 0.05; if (vol <= 0) { clearInterval(fade); audio.pause(); audio.volume = 1; } else { audio.volume = vol; } }, 100);
+    }
+
+    function finalizeAnswer(q) {
+      acceptingInput = false;
+      if (!selected) selected = "none";
+      if (selected === q.answer) {
+        correctSound.play(); correctCount++; let message = "正解！"; if (q.hard) { message += "（難問正解！）"; }
+        animateCorrect(); showResult(message, "lime", true);
+      } else {
+        wrongSound.play(); animateWrong(); showResult("不正解！", "red", false); if (currentBgm) fadeOutAudio(currentBgm);
+      }
+    }
+
+    function animateWrong() {
+       trolley.classList.add("shake"); setTimeout(() => trolley.classList.remove("shake"), 1000);
+      game.classList.add("flash-red");
+      setTimeout(()=>game.classList.remove("flash-red"),1500);
+      const canvas = document.getElementById("particleCanvas"); const ctx = canvas.getContext("2d");
+      createParticles(canvas.width/2, canvas.height-800, "red");
+      function anim() { ctx.clearRect(0,0,canvas.width,canvas.height); updateParticles(ctx); if (particles.length > 0) requestAnimationFrame(anim); }
+      anim();
+    }
+
+    function animateCorrect() {
+      game.classList.add("flash-green");
+      setTimeout(()=>game.classList.remove("flash-green"),1500);
+      const canvas = document.getElementById("particleCanvas"); const ctx = canvas.getContext("2d");
+      createParticles(canvas.width/2, canvas.height-800, "lime");
+      function anim() { ctx.clearRect(0,0,canvas.width,canvas.height); updateParticles(ctx); if (particles.length > 0) requestAnimationFrame(anim); }
+      anim();
+    }
+
+    function resetGame() {
+      correctCount = 0;
+      questionPool = [
+       { q: "日本の首都は？",    left: "東京", right: "大阪",                         answer: "left", hard: false, imgL:"東京.jpg", imgR:"大阪.jpg" },
+      { q: "富士山の高さは？",  left: "3,776m", right: "2,500m",                     answer: "left", hard: true, imgL:"09_aboutfujisan.jpg", imgR:"09_aboutfujisan.jpg" },
+      { q: "日本の国鳥は？",    left: "ツル", right: "キジ",                         answer: "right", hard: true, imgL:"nbat_b16.png", imgR:"bird_cute_kiji_10917.png" },
+      { q: "日本で一番長い川は？", left: "利根川", right: "信濃川",                  answer: "right", hard: true, imgL:"00170477000301.jpg", imgR:"150005_05C013.jpg" },
+      { q: "日本の通貨は？",     left: "$", right: "円",                            answer: "right", hard: false, imgL:"mark_dollar.png", imgR:"mark_yen.png" },
+      { q: "キャベツはどっち", left: "こっち？", right: "こっち？",                  answer: "right", hard: true, imgL:"レタス.png", imgR:"キャベツ.png" },
+     
+      { q: "マリオの苗字",     left: "マリオ", right: "スーパー",                   answer: "left", hard: false, imgL:"20160908072628_350_.jpg", imgR:"20160908072628_350_.jpg" },
+      { q: "日本の国花は？",    left: "桜", right: "菊",                           answer: "left", hard: true, imgL:"sakura_kaika.png", imgR:"flower_kiku.png" },
+      { q: "食パンの「耳」はアメリカでは何？", left: "手首", right: "かかと",         answer: "right", hard: true, imgL:"body_te.png", imgR:"body_foot_kakato.png" },
+      { q: "昨日は何曜日？",   left: "日曜日", right: "土曜日",                     answer: "right", hard: false, imgL:"week7_sun.png", imgR:"week6_sat.png" },
+      { q: "大きい県は？",    left: "岩手", right: "北海道",                        answer: "left", hard: false, imgL:"画像2.png", imgR:"画像1.png" },
+      { q: "電球を作ったのは？", left: "ニコラ・テスラ", right: "トーマス・エジソン", answer: "right", hard: false, imgL:"Tesla_Sarony.jpg", imgR:"5937895c-0da7-4055-802d-0244ae651934_webp.webp" },
+      { q: "右はどっち？", left: "←", right: "→",                                 answer: "right", hard: false, imgL:"left-arrow.png", imgR:"right-arrow.png" },
+      { q: "タコピーは何星人？", left: "ハッピー星人", right: "ナメック星人",        answer: "left", hard: true, imgL:"main_9x1YSvWvU109z-lo8p486h8fdDy8CNSi.jpg", imgR:"20606.jpg" },
+         { q: "鬼舞辻無惨はどっち？", left: "こっち？", right: "こっち？",              answer: "right", hard: true, imgL:"smooth-criminal-billion.webp", imgR:"img_chara_16.jpg" },
+      
+      { q: "ピカチューのオスは？",    left: "こっち？", right: "こっち？",          answer: "left", hard: true, imgL:"お.png", imgR:"め.png" }, 
+      { q: "日本の最北端は？",  left: "北海道", right: "沖縄",                       answer: "left", hard: false, imgL:"toy_kibori_kuma.png", imgR:"shiisa_one.png" },
+      { q: "大根はどれ？",        left: "根菜", right: "果物",                    answer: "left", hard: false, imgL:"4_1.jpg", imgR:"4_1.jpg" }
+    ];
+      document.getElementById("choices").style.display = "flex"; timerDisplay.style.display = "block"; restartButton.style.display = "none"; loadQuestion();
+    }
+
+    function showResult(text, color, isCorrect) {
+      result.innerText = text; result.style.color = color; result.style.display = "block"; clearInterval(timerInterval);
+      setTimeout(() => {
+        if (!isCorrect) {
+          questionEl.textContent = "ゲームオーバー！"; document.getElementById("choices").style.display = "none"; timerDisplay.style.display = "none"; restartButton.style.display = "block"; return;
+        }
+        if (correctCount >= 5) {
+          if (currentBgm) fadeOutAudio(currentBgm);
+          clearSe.play(); clearBgm.play();
+          // 業火エフェクト
+          createParticles(window.innerWidth/2, window.innerHeight/2, "#ff0000", false, true);
+          questionEl.textContent = "ゲームクリア！おめでとう！"; document.getElementById("choices").style.display = "none"; timerDisplay.style.display = "none";
+          const canvas = document.getElementById("particleCanvas"); const ctx = canvas.getContext("2d");
+          function anim() { ctx.clearRect(0,0,canvas.width,canvas.height); updateParticles(ctx); if (particles.length > 0) requestAnimationFrame(anim); }
+          anim();
+          return;
+        }
+        loadQuestion();
+      }, 2000);
+    }
+
+    document.getElementById("startButton").addEventListener("click", () => {
+      startBgm.pause(); startScreen.style.display = "none"; game.style.display = "flex"; timerDisplay.style.display = "block";
+      currentBgm = bgmTracks[Math.floor(Math.random() * bgmTracks.length)]; currentBgm.loop = true; currentBgm.play(); loadQuestion();
+    });
+
+    restartButton.addEventListener("click", () => {
+      resetGame(); currentBgm = bgmTracks[Math.floor(Math.random() * bgmTracks.length)]; currentBgm.loop = true; currentBgm.play();
+    });
+
+    window.addEventListener("load", () => { startBgm.loop = true; startBgm.play(); });
+  </script>
+</body>
+</html>
