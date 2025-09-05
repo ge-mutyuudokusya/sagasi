@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Stealth — 見つからないように移動（拡張版）</title>
+<title>Stealth — 見つからないように移動</title>
 <style>
   :root{
     --bg:#0e0e12; --ui:#111218; --text:#eaeaea;
@@ -72,7 +72,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let W = canvas.width, H = canvas.height;
 
-/* ----------------- Game state ----------------- */
+
 let state = {
   running: true,
   detected: 0,
@@ -84,13 +84,12 @@ let state = {
   footstepTimer: 0,
 };
 
-/* ---------------- Audio (WebAudio) ---------------- */
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 let audioCtx = null;
 function ensureAudio() {
   if (!audioCtx) {
     audioCtx = new AudioCtx();
-    // small resumed context on first user gesture
+
     if (audioCtx.state === 'suspended') audioCtx.resume();
   }
 }
@@ -109,7 +108,7 @@ function playTone(freq, duration=0.12, type='sine', gain=0.12) {
 function playBGM() {
   if (!state.soundOn) return;
   ensureAudio();
-  // ambient noise using low-frequency oscillator + filter (simple ambient loop)
+
   if (audioCtx._bgm) return;
   const o = audioCtx.createOscillator();
   const g = audioCtx.createGain();
@@ -129,10 +128,9 @@ function stopBGM() {
   audioCtx._bgm = null;
 }
 function footstepSound() {
-  // footstep: short pitch noise
-  if (!state.soundOn) return;
+    if (!state.soundOn) return;
   ensureAudio();
-  // two quick tones
+
   playTone(420, 0.045, 'sawtooth', 0.04);
   setTimeout(()=>playTone(380, 0.045, 'sine', 0.03), 55);
 }
@@ -149,12 +147,10 @@ function alertBeep() {
   setTimeout(()=>playTone(900, 0.09, 'sine', 0.09), 80);
 }
 
-/* ----------------- Levels: map + entities ----------------- */
-/* Each level contains: walls, shadows, covers (hideable), boxes (noise generators),
-   enemies (with patrol points), goal, timeLimit, scoreReward
-*/
+
+
 const levels = [
-  // Level 1: tutorial-ish
+
   {
     timeLimit: 75,
     scoreReward: 100,
@@ -164,16 +160,17 @@ const levels = [
       {x:150,y:80,w:48,h:240},{x:300,y:260,w:200,h:40},{x:540,y:80,w:40,h:200},{x:380,y:20,w:24,h:120}
     ],
     shadows: [{x:40,y:320,w:120,h:140},{x:460,y:330,w:280,h:200},{x:240,y:120,w:140,h:90}],
-    covers: [{x:200,y:380,w:56,h:56},{x:600,y:160,w:64,h:64}], // hideable: inside → reduce detection heavily
-    boxes: [{x:320,y:220,w:20,h:20},{x:700,y:420,w:20,h:20}], // can be hit to make noise
+    covers: [{x:200,y:380,w:56,h:56},{x:600,y:160,w:64,h:64}],
+    boxes: [{x:320,y:220,w:20,h:20},{x:700,y:420,w:20,h:20}], 
     goal: {x:720,y:40,w:48,h:48},
     enemies: [
-      {x:260,y:140,patrol:[{x:260,y:140},{x:480,y:140}], speed:1.2, viewDist:110, fov:Math.PI*0.28, color:'#e36b6b', react:0.9},
+      {x:260,y:160,patrol:[{x:220,y:160},{x:280,y:160}], speed:1.2, viewDist:110, fov:Math.PI*0.28, color:'#e36b6b', react:0.9},
       {x:520,y:420,patrol:[{x:520,y:420},{x:200,y:460}], speed:1.0, viewDist:120, fov:Math.PI*0.34, color:'#ff9a76', react:1.1},
-      {x:140,y:140,patrol:[{x:140,y:140},{x:140,y:320}], speed:0.9, viewDist:100, fov:Math.PI*0.42, color:'#d07bff', react:0.8},
+      {x:90,y:140,patrol:[{x:130,y:140},{x:130,y:320}], speed:0.9, viewDist:100, fov:Math.PI*0.42, color:'#d07bff', react:0.8},
+      {x:700,y:60,patrol:[{x:700,y:60},{x:700,y:320}], speed:0.9, viewDist:100, fov:Math.PI*0.42, color:'#d07bff', react:0.8},
     ]
   },
-  // Level 2: more enemies, tighter shadows
+
   {
     timeLimit: 90,
     scoreReward: 220,
@@ -188,12 +185,13 @@ const levels = [
     goal: {x:760,y:40,w:48,h:48},
     enemies: [
       {x:200,y:120,patrol:[{x:200,y:120},{x:200,y:420}], speed:1.0, viewDist:140, fov:Math.PI*0.34, color:'#ffbf61', react:1.2},
-      {x:400,y:200,patrol:[{x:400,y:200},{x:580,y:200}], speed:1.4, viewDist:130, fov:Math.PI*0.22, color:'#ff6bcb', react:1.4},
+      {x:400,y:200,patrol:[{x:400,y:200},{x:400,y:280}], speed:1.4, viewDist:130, fov:Math.PI*0.22, color:'#ff6bcb', react:1.4},
       {x:640,y:360,patrol:[{x:640,y:360},{x:360,y:360}], speed:1.05, viewDist:110, fov:Math.PI*0.46, color:'#6bd6ff', react:0.9},
       {x:520,y:420,patrol:[{x:520,y:420},{x:720,y:420}], speed:0.8, viewDist:150, fov:Math.PI*0.28, color:'#ff7b7b', react:1.0},
     ]
   },
-  // Level 3: tight corridors, moving boxes
+
+  
   {
     timeLimit: 100,
     scoreReward: 420,
@@ -214,18 +212,16 @@ const levels = [
   }
 ];
 
-/* ----------------- Player ----------------- */
+
 const player = {x:48,y:H-80,r:10,speed:2.4,hidden:false};
 
-/* ----------------- Dynamic entities (will be created per-level) ----------------- */
+
 let walls = [], shadows = [], covers = [], boxes = [], goal = null, enemies = [];
 
-/* ----------------- Input ----------------- */
 const keys = {};
 window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if (!audioCtx) ensureAudio(); });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
-/* -------------- UI elements --------------- */
 const stealthBar = document.getElementById('stealth-bar');
 const detDot = document.getElementById('det-dot');
 const detText = document.getElementById('det-text');
@@ -238,7 +234,7 @@ const toggleSoundBtn = document.getElementById('toggle-sound');
 restartBtn.addEventListener('click', ()=>startLevel(state.levelIndex, true));
 toggleSoundBtn.addEventListener('click', ()=>{ state.soundOn = !state.soundOn; toggleSoundBtn.textContent = 'サウンド: ' + (state.soundOn ? 'ON' : 'OFF'); if (!state.soundOn) stopBGM(); else playBGM(); });
 
-/* ----------------- Init / Level load ----------------- */
+
 function startLevel(index, restart=false){
   const lvl = levels[index];
   walls = JSON.parse(JSON.stringify(lvl.walls));
@@ -249,7 +245,7 @@ function startLevel(index, restart=false){
   enemies = lvl.enemies.map(e => createEnemyFromConfig(e));
   player.x = lvl.playerStart.x; player.y = lvl.playerStart.y;
   state.detected = 0; state.running = true; state.message=''; state.timeLeft = lvl.timeLimit;
-  // score persists across levels; if restarting level and restart===true, do not reset total score
+
   if (!restart && index === 0) state.score = 0;
   levelNum.textContent = (index+1);
   scoreNum.textContent = state.score;
@@ -263,7 +259,7 @@ function createEnemyFromConfig(cfg){
   };
 }
 
-/* ----------------- Collision helpers ----------------- */
+
 function circleIntersectsRect(c, r){
   const closestX = Math.max(r.x, Math.min(c.x, r.x + r.w));
   const closestY = Math.max(r.y, Math.min(c.y, r.y + r.h));
@@ -272,7 +268,6 @@ function circleIntersectsRect(c, r){
 }
 function collideWalls(circle){ for (const w of walls) if (circleIntersectsRect(circle,w)) return true; return false; }
 
-/* ----------------- Raycasts / LOS ----------------- */
 function segmentIntersect(x1,y1,x2,y2, x3,y3,x4,y4){
   const denom = (y4-y3)*(x2-x1) - (x4-x3)*(y2-y1);
   if (Math.abs(denom) < 1e-6) return false;
@@ -293,10 +288,10 @@ function isBlocked(x1,y1,x2,y2){
   return false;
 }
 
-/* ----------------- Enemy functions ----------------- */
+
 function updateEnemies(delta){
   enemies.forEach(en=>{
-    // patrol movement
+
     if (en.patrol && en.patrol.length>0){
       const t = en.patrol[en.pi];
       const dx = t.x - en.x, dy = t.y - en.y;
@@ -310,12 +305,12 @@ function updateEnemies(delta){
         if (Math.abs(nx)+Math.abs(ny) > 0.001) en.dir = Math.atan2(ny,nx);
       }
     }
-    // decay alert slowly
+
     en.alert = Math.max(0, en.alert - 0.01*delta);
   });
 }
 
-/* ----------------- Detection ----------------- */
+
 function smallestAngleBetween(a,b){
   let d = b - a;
   while (d > Math.PI) d -= Math.PI*2;
@@ -323,9 +318,9 @@ function smallestAngleBetween(a,b){
   return d;
 }
 function updateDetection(delta){
-  // inShadow if inside any shadow rect
+
   const inShadow = shadows.some(s => player.x > s.x && player.x < s.x+s.w && player.y > s.y && player.y < s.y+s.h);
-  // hiding in cover?
+
   const inCover = covers.some(c => player.x > c.x && player.x < c.x+c.w && player.y > c.y && player.y < c.y+c.h);
   player.hidden = Boolean(inCover);
 
@@ -338,16 +333,16 @@ function updateDetection(delta){
     const dAng = smallestAngleBetween(en.dir, angToPlayer);
     if (Math.abs(dAng) > en.fov/2) return;
     if (isBlocked(en.x,en.y,player.x,player.y)) return;
-    // detection base
-    let base = (1 - dist/en.viewDist) * en.react; // enemy react affects strength
-    // reduce if in shadow
+   
+    let base = (1 - dist/en.viewDist) * en.react;
+   
     if (inShadow) base *= 0.28;
-    // major reduce if in cover
+
     if (inCover) base *= 0.12;
-    // add if enemy is alerted
+   
     base *= (1 + en.alert);
     detectedNow = Math.max(detectedNow, base);
-    // bump alert value slightly
+ 
     en.alert = Math.min(2.0, en.alert + base * 0.06);
   });
 
@@ -364,7 +359,7 @@ function updateDetection(delta){
   }
 }
 
-/* ------------- Player movement & interactions ------------- */
+
 function handlePlayerMovement(delta){
   let dx=0, dy=0;
   if (keys['arrowup']||keys['w']) dy -= 1;
@@ -384,11 +379,10 @@ function handlePlayerMovement(delta){
       if (!collideWalls(p1)) player.x = nx;
       if (!collideWalls(p2)) player.y = ny;
     }
-    // footsteps: interval based on movement
+  
     state.footstepTimer -= 1;
     if (state.footstepTimer <= 0) {
-      footstepSound(); state.footstepTimer = 12; // cadence
-      // small stealth penalty for moving in the open: if not in shadow/cover, slight detection increase
+      footstepSound(); state.footstepTimer = 12;
       const inShadowNow = shadows.some(s => player.x > s.x && player.x < s.x+s.w && player.y > s.y && player.y < s.y+s.h);
       const inCoverNow = covers.some(c => player.x > c.x && player.x < c.x+c.w && player.y > c.y && player.y < c.y+c.h);
       if (!inShadowNow && !inCoverNow) state.detected = Math.min(1, state.detected + 0.002 * delta);
@@ -397,21 +391,21 @@ function handlePlayerMovement(delta){
     state.footstepTimer = 0;
   }
 
-  // Interact with boxes: hit by pressing space or clicking near
+
   if (keys[' ']) {
-    // simulate hit once per press
+    
     if (!keys._spaceHandled) {
       hitNearestBox(); keys._spaceHandled = true;
     }
   } else keys._spaceHandled = false;
 
-  // Check goal
+
   if (player.x > goal.x && player.x < goal.x + goal.w && player.y > goal.y && player.y < goal.y + goal.h) {
     levelCleared();
   }
 }
 
-/* -------------- Box noise & enemy attraction -------------- */
+
 function hitNearestBox(){
   // find box within radius 36
   let nearest = null, nd = Infinity;
@@ -421,44 +415,44 @@ function hitNearestBox(){
     if (d < 56 && d < nd) { nearest = b; nd = d; }
   }
   if (!nearest) return;
-  // produce noise
+ 
   hitObjectSound();
-  // For each enemy, if within certain hearing distance, set alert and set their attention target toward noise
+
   enemies.forEach(en=>{
     const dx = (nearest.x + nearest.w/2) - en.x, dy = (nearest.y + nearest.h/2) - en.y;
     const dist = Math.hypot(dx,dy);
-    const hearingRange = 220; // hearing radius
+    const hearingRange = 220; 
     if (dist < hearingRange) {
-      // increase alert and redirect patrol target temporarily
+      
       en.alert = Math.min(2.0, en.alert + (1 - dist/hearingRange) * 1.2);
-      // turn to face noise immediately
+      
       en.dir = Math.atan2(dy,dx);
-      // make them move somewhat toward noise by adding a temporary patrol point at noise
+      
       en.patrol.splice(en.pi+1,0,{x: nearest.x + nearest.w/2, y: nearest.y + nearest.h/2});
     }
   });
-  // scoring: making noise costs points
+
   state.score = Math.max(0, state.score - 8);
 }
 
-/* -------------- Level complete / fail -------------- */
+
 function levelCleared(){
   state.running = false;
   state.message = 'クリア！ 次のレベルへ';
-  // award score: remaining time * factor + reward
+
   const timeBonus = Math.round(state.timeLeft * 3);
   const reward = levels[state.levelIndex].scoreReward + timeBonus;
   state.score += reward;
   scoreNum.textContent = state.score;
-  // small positive jingle
+
   playTone(880, 0.09, 'sine', 0.12);
   setTimeout(()=>playTone(1100, 0.08, 'sine', 0.12), 100);
-  // advance after short delay
+
   setTimeout(()=>{
     state.levelIndex++;
     if (state.levelIndex >= levels.length) {
       state.message = `全レベルクリア！ 最終スコア: ${state.score}`;
-      // stop BGM
+      
       stopBGM();
     } else {
       startLevel(state.levelIndex);
@@ -471,20 +465,19 @@ function gameOver(){
   stopBGM();
 }
 
-/* -------------- Rendering -------------- */
 function render(){
   ctx.clearRect(0,0,W,H);
-  // floor
+ 
   ctx.fillStyle = '#222';
   ctx.fillRect(0,0,W,H);
 
-  // draw shadows (darker zones)
+  
   shadows.forEach(s => {
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.fillRect(s.x, s.y, s.w, s.h);
   });
 
-  // draw covers (hideable objects) - visually different
+
   covers.forEach(c=>{
     ctx.fillStyle = 'rgba(20,80,20,0.9)';
     ctx.fillRect(c.x, c.y, c.w, c.h);
@@ -494,35 +487,33 @@ function render(){
     ctx.fillText('HIDE', c.x+6, c.y+12);
   });
 
-  // draw boxes (can be hit)
   boxes.forEach(b=>{
     ctx.fillStyle = '#8f6b4f';
     ctx.fillRect(b.x,b.y,b.w,b.h);
     ctx.strokeStyle = '#5a3e2a'; ctx.strokeRect(b.x,b.y,b.w,b.h);
   });
 
-  // draw goal
+  
   ctx.fillStyle = 'rgba(255,209,102,1)';
   ctx.fillRect(goal.x,goal.y,goal.w,goal.h);
   ctx.strokeStyle = '#b8860b'; ctx.strokeRect(goal.x,goal.y,goal.w,goal.h);
 
-  // draw walls
   ctx.fillStyle = '#3b3b3b';
   walls.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
 
-  // enemies vision cones first
+
   enemies.forEach(en => drawVisionCone(en));
 
-  // enemies bodies
+
   enemies.forEach(en=>{
     ctx.beginPath();
     ctx.fillStyle = en.color || '#e36b6b';
     ctx.arc(en.x,en.y,en.r,0,Math.PI*2); ctx.fill();
-    // eye
+   
     const ex = en.x + Math.cos(en.dir)*(en.r+5);
     const ey = en.y + Math.sin(en.dir)*(en.r+5);
     ctx.beginPath(); ctx.fillStyle='#fff'; ctx.arc(ex,ey,4,0,Math.PI*2); ctx.fill();
-    // small alert marker
+   
     if (en.alert > 0.4){
       ctx.beginPath();
       ctx.fillStyle = `rgba(255,60,60,${Math.min(0.85,en.alert/1.8)})`;
@@ -536,7 +527,7 @@ function render(){
   ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill();
   ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.stroke();
 
-  // overlay if detected
+
   if (state.detected > 0) {
     ctx.save();
     ctx.globalAlpha = Math.min(0.6, state.detected*0.9);
@@ -545,7 +536,7 @@ function render(){
     ctx.restore();
   }
 
-  // UI overlay messages
+
   if (!state.running) {
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H);
@@ -556,7 +547,7 @@ function render(){
   }
 }
 
-/* draw vision cone with raycast to walls */
+
 function drawVisionCone(en){
   const startAng = en.dir - en.fov/2;
   const endAng = en.dir + en.fov/2;
@@ -606,7 +597,6 @@ function getSegmentIntersection(p1,p2,p3,p4){
   return null;
 }
 
-/* ----------------- Main loop ----------------- */
 let last = performance.now();
 function loop(t){
   const dt = Math.min(40, t - last);
@@ -640,7 +630,7 @@ function updateUI(){
   timeNum.textContent = Math.ceil(state.timeLeft) + ' s';
 }
 
-/* --------------- Touch support --------------- */
+
 let touchState = null;
 canvas.addEventListener('pointerdown', e => {
   const rect = canvas.getBoundingClientRect();
@@ -660,7 +650,7 @@ canvas.addEventListener('pointermove', e=>{
   keys['arrowup'] = dy < -dead; keys['arrowdown'] = dy > dead; keys['arrowleft'] = dx < -dead; keys['arrowright'] = dx > dead;
 });
 
-/* --------------- Mouse click: interact with boxes (also makes noise) --------------- */
+
 canvas.addEventListener('click', e=>{
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left, my = e.clientY - rect.top;
@@ -688,7 +678,7 @@ canvas.addEventListener('click', e=>{
   }
 });
 
-/* ------------------ Init game ------------------ */
+
 function init(){
   state.levelIndex = 0;
   startLevel(0);
@@ -696,10 +686,9 @@ function init(){
 }
 init();
 
-/* Prevent page scroll on touch */
 document.body.addEventListener('touchmove', e => { e.preventDefault(); }, {passive:false});
 
-/* Ensure audio context activation on first user gesture */
+
 window.addEventListener('pointerdown', ()=>{ if (state.soundOn) { ensureAudio(); playBGM(); } }, {once:true});
 
 </script>
